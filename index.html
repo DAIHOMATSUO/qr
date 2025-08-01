@@ -223,61 +223,6 @@
         min-height: 200px;
       }
     }
-
-    // 大量スキャン対応モード
-    function enableBulkMode() {
-      const options = [
-        '🚀 高速スキャンモードを有効化しますか？\n',
-        '✅ 自動確認：スキャン後の確認ダイアログをスキップ',
-        '⚡ 高速処理：スキャン間隔を短縮',
-        '💾 自動バックアップ：100件ごとに自動保存',
-        '🔋 省電力：画面の自動オフを防止\n',
-        '⚠️ 注意：誤読み取りのリスクが高まります'
-      ].join('\n');
-      
-      if (confirm(options)) {
-        isBulkMode = true;
-        bulkModeSettings.autoConfirm = true;
-        bulkModeSettings.fastScan = true;
-        bulkModeSettings.autoBackup = true;
-        
-        // 画面の自動オフ防止
-        if ('wakeLock' in navigator) {
-          navigator.wakeLock.request('screen').catch(console.error);
-        }
-        
-        updateStatus('🚀 高速スキャンモード有効！確認なしで連続スキャンします', 'success');
-        
-        // カメラが起動していない場合は自動起動
-        if (!isScanning) {
-          setTimeout(startCamera, 1000);
-        }
-      }
-    }
-
-    // バルクモード用の高速確認
-    function quickConfirmScan() {
-      if (!pendingData) return;
-      
-      // データ登録（確認なし）
-      scanData.push({...pendingData});
-      totalCount++;
-      totalQuantity += pendingData.quantity;
-      
-      updateSummary();
-      updateDataDisplay();
-      saveData();
-      
-      // 100件ごとに自動バックアップ
-      if (bulkModeSettings.autoBackup && totalCount % 100 === 0) {
-        exportData();
-        updateStatus(`💾 ${totalCount}件到達！自動バックアップ実行`, 'success');
-      } else {
-        updateStatus(`⚡ ${totalCount}件登録完了 (残り約${2000-totalCount}件)`, 'success');
-      }
-      
-      pendingData = null;
-    }
   </style>
 </head>
 <body>
@@ -310,17 +255,10 @@
       <button class="btn btn-secondary" onclick="clearData()">🗑️ クリア</button>
     </div>
     
-    <!-- 緊急時フォールバック -->
-    <div style="text-align: center; margin: 16px 0;">
-      <button class="btn btn-secondary" onclick="manualInput()" style="background: rgba(255,193,7,0.3); border-color: rgba(255,193,7,0.5);">
-        ⌨️ 手動入力モード
-      </button>
-    </div>
-    
     <!-- テスト機能 -->
     <button class="btn btn-secondary" onclick="testScan()">🧪 テスト読み取り</button>
     <button class="btn btn-secondary" onclick="checkCameraPermission()">🔍 カメラ設定確認</button>
-    <button class="btn btn-secondary" onclick="resetAllPermissions()">🔄 完全リセット実行</button>
+    <button class="btn btn-secondary" onclick="showQRTips()">💡 読み取りコツ</button>
     
     <!-- データ表示 -->
     <div id="dataSection" class="hidden">
@@ -331,32 +269,8 @@
     </div>
   </div>
   
-  <!-- 手動入力ダイアログ -->
-  <div id="manualDialog" class="confirm-dialog">
-    <div class="confirm-content">
-      <h3 style="margin-top: 0;">⌨️ 手動入力モード</h3>
-      <div style="margin: 16px 0;">
-        <label style="display: block; margin-bottom: 8px;">📅 日付 (YYYY/MM/DD)</label>
-        <input type="text" id="manualDate" placeholder="2025/07/22" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px;">
-      </div>
-      <div style="margin: 16px 0;">
-        <label style="display: block; margin-bottom: 8px;">🏷️ 客先品番</label>
-        <input type="text" id="manualProduct" placeholder="85244-63R20-5PKCO" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px;">
-      </div>
-      <div style="margin: 16px 0;">
-        <label style="display: block; margin-bottom: 8px;">🔢 数量</label>
-        <input type="number" id="manualQuantity" placeholder="18" min="1" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px;">
-      </div>
-      <div style="margin: 16px 0;">
-        <label style="display: block; margin-bottom: 8px;">📋 社内管理品番</label>
-        <input type="text" id="manualInternal" placeholder="SNCA00000090" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px;">
-      </div>
-      <div class="confirm-buttons">
-        <button class="btn btn-danger" onclick="closeManualInput()">❌ キャンセル</button>
-        <button class="btn btn-primary" onclick="submitManualInput()">✅ 登録</button>
-      </div>
-    </div>
-  </div>
+  <!-- 確認ダイアログ -->
+  <div id="confirmDialog" class="confirm-dialog">
     <div class="confirm-content">
       <div id="confirmText" class="confirm-text"></div>
       <div class="confirm-buttons">
@@ -374,12 +288,6 @@
     let scanData = [];
     let totalCount = 0;
     let totalQuantity = 0;
-    let isBulkMode = false;
-    let bulkModeSettings = {
-      autoConfirm: false,
-      fastScan: false,
-      autoBackup: false
-    };
 
     // DOM要素
     const startBtn = document.getElementById('startBtn');
@@ -404,366 +312,73 @@
       }
     });
 
-    // カメラ起動（強化版エラー診断付き）
+    // カメラ起動
     async function startCamera() {
       if (isScanning) return;
       
       try {
-        updateStatus('🔍 カメラ起動前診断を実行中...', 'info');
-        
-        // 段階1: 基本的な環境チェック
-        const diagnostics = [];
+        updateStatus('📷 カメラを起動中...', 'info');
         
         // ブラウザサポートチェック
         if (!navigator.mediaDevices) {
-          diagnostics.push('❌ MediaDevices API未対応');
-          updateStatus('❌ ブラウザがカメラに対応していません', 'error');
-          showDetailedError('ブラウザ非対応', diagnostics);
-          return;
+          throw new Error('カメラアクセスに対応していないブラウザです');
         }
-        diagnostics.push('✅ MediaDevices API対応');
-        
-        if (!navigator.mediaDevices.getUserMedia) {
-          diagnostics.push('❌ getUserMedia未対応');
-          updateStatus('❌ カメラアクセス機能がありません', 'error');
-          showDetailedError('getUserMedia非対応', diagnostics);
-          return;
-        }
-        diagnostics.push('✅ getUserMedia対応');
-        
-        // Html5Qrcodeライブラリチェック
+
+        // Html5Qrcodeが読み込まれているかチェック
         if (typeof Html5Qrcode === 'undefined') {
-          diagnostics.push('❌ QRライブラリ未読み込み');
-          updateStatus('❌ QRライブラリが読み込まれていません', 'error');
-          showDetailedError('ライブラリエラー', diagnostics);
-          return;
+          throw new Error('QRライブラリが読み込まれていません');
         }
-        diagnostics.push('✅ QRライブラリ読み込み済み');
+
+        scanner = new Html5Qrcode("reader");
         
-        updateStatus('📷 カメラアクセスを試行中...', 'info');
-        
-        // 段階2: 直接的なカメラアクセステスト
-        let testStream = null;
-        try {
-          testStream = await navigator.mediaDevices.getUserMedia({ 
-            video: { 
-              facingMode: { ideal: "environment" },
-              width: { ideal: 640 },
-              height: { ideal: 480 }
-            } 
-          });
-          diagnostics.push('✅ カメラアクセス成功');
-          
-          // テストストリームを停止
-          testStream.getTracks().forEach(track => track.stop());
-          
-        } catch (accessError) {
-          diagnostics.push(`❌ カメラアクセス失敗: ${accessError.name}`);
-          updateStatus(`❌ カメラアクセスエラー: ${accessError.name}`, 'error');
-          showDetailedError('カメラアクセス失敗', diagnostics, accessError);
-          return;
+        // カメラリストを取得
+        const cameras = await Html5Qrcode.getCameras();
+        if (!cameras || cameras.length === 0) {
+          throw new Error('カメラが見つかりません');
         }
-        
-        updateStatus('📷 QRスキャナーを初期化中...', 'info');
-        
-        // 段階3: Html5Qrcodeでカメラ起動
-        try {
-          scanner = new Html5Qrcode("reader");
-          
-          // カメラ一覧取得
-          const cameras = await Html5Qrcode.getCameras();
-          diagnostics.push(`✅ 検出カメラ数: ${cameras.length}`);
-          
-          if (!cameras || cameras.length === 0) {
-            diagnostics.push('❌ 利用可能カメラなし');
-            updateStatus('❌ 利用可能なカメラがありません', 'error');
-            showDetailedError('カメラ未検出', diagnostics);
-            return;
+
+        // 背面カメラを優先選択
+        let selectedCamera = cameras[0];
+        for (let camera of cameras) {
+          if (camera.label.toLowerCase().includes('back') || 
+              camera.label.toLowerCase().includes('rear') ||
+              camera.label.toLowerCase().includes('environment')) {
+            selectedCamera = camera;
+            break;
           }
-          
-          // 背面カメラ選択
-          let selectedCamera = cameras[0];
-          for (let camera of cameras) {
-            const label = camera.label.toLowerCase();
-            if (label.includes('back') || label.includes('rear') || label.includes('environment')) {
-              selectedCamera = camera;
-              break;
+        }
+
+        // カメラ起動
+        await scanner.start(
+          selectedCamera.id,
+          {
+            fps: 10,
+            qrbox: function(viewfinderWidth, viewfinderHeight) {
+              const minSize = Math.min(viewfinderWidth, viewfinderHeight);
+              const size = Math.floor(minSize * 0.8);
+              return { width: size, height: size };
             }
-          }
-          diagnostics.push(`✅ 選択カメラ: ${selectedCamera.label || 'Unknown'}`);
-          
-          // カメラ起動
-          await scanner.start(
-            selectedCamera.id,
-            {
-              fps: 10,
-              qrbox: function(viewfinderWidth, viewfinderHeight) {
-                const minSize = Math.min(viewfinderWidth, viewfinderHeight);
-                const size = Math.floor(minSize * 0.7);
-                return { width: size, height: size };
-              },
-              aspectRatio: 1.0
-            },
-            onScanSuccess,
-            onScanFailure
-          );
-          
-          diagnostics.push('✅ Html5Qrcode起動成功');
-          
-          // 成功時の処理
-          isScanning = true;
-          startBtn.classList.add('hidden');
-          stopBtn.classList.remove('hidden');
-          updateStatus('✅ カメラが正常に起動しました！QRコードをスキャンしてください', 'success');
-          
-          console.log('カメラ起動診断結果:', diagnostics);
-          
-        } catch (qrError) {
-          diagnostics.push(`❌ Html5Qrcode起動失敗: ${qrError.message}`);
-          updateStatus(`❌ QRスキャナー起動エラー`, 'error');
-          showDetailedError('QRスキャナー起動失敗', diagnostics, qrError);
-          return;
-        }
+          },
+          onScanSuccess,
+          onScanFailure
+        );
+
+        isScanning = true;
+        startBtn.classList.add('hidden');
+        stopBtn.classList.remove('hidden');
+        updateStatus('📷 QRコードをカメラに映してください', 'success');
         
       } catch (error) {
         console.error('カメラ起動エラー:', error);
-        updateStatus(`❌ 予期しないエラー: ${error.message}`, 'error');
-        showDetailedError('予期しないエラー', [], error);
-      }
-    }
-
-    // 詳細エラー表示
-    function showDetailedError(errorType, diagnostics, error = null) {
-      let message = `🔍 カメラ起動エラー診断結果\n\n`;
-      message += `❌ エラータイプ: ${errorType}\n\n`;
-      
-      if (diagnostics.length > 0) {
-        message += `📋 診断結果:\n`;
-        diagnostics.forEach(diag => message += `${diag}\n`);
-        message += `\n`;
-      }
-      
-      if (error) {
-        message += `🐛 詳細エラー: ${error.name}\n`;
-        message += `💬 メッセージ: ${error.message}\n\n`;
-      }
-      
-      // エラータイプ別の解決策
-      message += `💡 解決策:\n\n`;
-      
-      if (errorType === 'カメラアクセス失敗') {
-        if (error && error.name === 'NotAllowedError') {
-          message += `🔒 カメラアクセスが拒否されています\n`;
-          message += `• ブラウザの設定でカメラを許可してください\n`;
-          message += `• 「🔍 カメラ設定確認」で詳細手順を確認\n`;
-        } else if (error && error.name === 'NotFoundError') {
-          message += `📷 カメラデバイスが見つかりません\n`;
-          message += `• 他のアプリでカメラを使用していませんか？\n`;
-          message += `• 端末を再起動してみてください\n`;
-        } else if (error && error.name === 'NotSupportedError') {
-          message += `🔒 セキュリティエラー\n`;
-          message += `• HTTPSまたはfile://でアクセスしてください\n`;
-        } else {
-          message += `• ページを再読み込みしてください\n`;
-          message += `• 別のブラウザで試してください\n`;
-        }
-      } else if (errorType === 'ブラウザ非対応') {
-        message += `• Chrome, Safari, Firefox の最新版を使用\n`;
-        message += `• 古いブラウザでは動作しません\n`;
-      } else if (errorType === 'ライブラリエラー') {
-        message += `• インターネット接続を確認してください\n`;
-        message += `• ページを再読み込みしてください\n`;
-      } else {
-        message += `• ページを再読み込み\n`;
-        message += `• 端末の再起動\n`;
-        message += `• 別のブラウザで試行\n`;
-      }
-      
-      message += `\n📞 さらにサポートが必要な場合は、この診断結果をお知らせください。`;
-      
-      console.error('詳細エラー情報:', message);
-      alert(message);
-      
-      // 診断結果をコンソールにも出力
-      console.log('診断情報:', {
-        errorType,
-        diagnostics,
-        error,
-        userAgent: navigator.userAgent,
-        url: location.href,
-        protocol: location.protocol
-      });
-    }
-
-    // 権限リセット手順表示
-    function showPermissionReset() {
-      const userAgent = navigator.userAgent;
-      const isIOS = /iPad|iPhone|iPod/.test(userAgent);
-      const isAndroid = /Android/.test(userAgent);
-      const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
-      const isChrome = /Chrome/.test(userAgent);
-      
-      let message = '🔓 NotAllowedError 解決手順\n\n';
-      message += '❌ 現在の状況: カメラアクセスが「拒否」されています\n\n';
-      
-      if (isIOS && isSafari) {
-        message += '🍎 iPhone Safari での解決法:\n\n';
-        message += '📍 方法1: アドレスバーから設定\n';
-        message += '1. アドレスバー左の「AA」をタップ\n';
-        message += '2. 「Webサイトの設定」をタップ\n';
-        message += '3. 「カメラ」を「許可」に変更\n';
-        message += '4. ページを再読み込み\n\n';
-        message += '📍 方法2: 完全リセット\n';
-        message += '1. 設定→Safari→「履歴とWebサイトデータを消去」\n';
-        message += '2. Safariアプリを完全終了\n';
-        message += '3. サイトに再アクセス\n\n';
-      } else if (isAndroid && isChrome) {
-        message += '🤖 Android Chrome での解決法:\n\n';
-        message += '📍 方法1: アドレスバーから設定\n';
-        message += '1. アドレスバー左の🔒をタップ\n';
-        message += '2. 「権限」をタップ\n';
-        message += '3. 「カメラ」を「許可」に変更\n';
-        message += '4. ページを再読み込み\n\n';
-        message += '📍 方法2: 完全リセット\n';
-        message += '1. Chrome設定→プライバシー→閲覧履歴データの削除\n';
-        message += '2. 「Cookieとサイトデータ」をチェック\n';
-        message += '3. 「データを削除」→Chromeを再起動\n\n';
-      } else {
-        message += '🌐 その他ブラウザでの解決法:\n\n';
-        message += '1. ブラウザの設定からサイトの権限を確認\n';
-        message += '2. カメラアクセスを「許可」に変更\n';
-        message += '3. ページを再読み込み\n\n';
-      }
-      
-      message += '⚡ 緊急回避策:\n';
-      message += '• 新しいプライベート/シークレットタブで開く\n';
-      message += '• 別のブラウザアプリを使用\n';
-      message += '• 「⌨️ 手動入力モード」で一時的に作業継続\n\n';
-      
-      message += '🔄 設定変更後は必ずページを再読み込みしてください！';
-      
-      alert(message);
-      updateStatus('🔓 権限リセット手順を確認してください', 'info');
-    }
-
-    // 完全リセット実行
-    function resetAllPermissions() {
-      const userAgent = navigator.userAgent;
-      const isIOS = /iPad|iPhone|iPod/.test(userAgent);
-      const isAndroid = /Android/.test(userAgent);
-      const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
-      
-      let resetSteps = '🔄 完全リセット手順\n\n';
-      resetSteps += '⚠️ この操作により、保存されたパスワードやサイトデータが削除される場合があります。\n\n';
-      
-      if (isIOS && isSafari) {
-        resetSteps += '🍎 iPhone Safari:\n';
-        resetSteps += '1. 設定アプリ → Safari\n';
-        resetSteps += '2. 「履歴とWebサイトデータを消去」をタップ\n';
-        resetSteps += '3. 「履歴とデータを消去」で確認\n';
-        resetSteps += '4. Safariアプリを完全終了（アプリスイッチャーから上にスワイプ）\n';
-        resetSteps += '5. iPhone再起動（推奨）\n';
-        resetSteps += '6. Safariでサイトに再アクセス\n\n';
+        updateStatus(`❌ ${error.message}`, 'error');
         
-      } else if (isAndroid) {
-        resetSteps += '🤖 Android Chrome:\n';
-        resetSteps += '1. Chrome → 設定（右上⋮）\n';
-        resetSteps += '2. プライバシーとセキュリティ → 閲覧履歴データの削除\n';
-        resetSteps += '3. 時間範囲「全期間」を選択\n';
-        resetSteps += '4. ✓ Cookieとサイトデータ\n';
-        resetSteps += '5. ✓ キャッシュされた画像とファイル\n';
-        resetSteps += '6. ✓ サイトの設定\n';
-        resetSteps += '7. 「データを削除」\n';
-        resetSteps += '8. Chrome完全終了 → 端末再起動（推奨）\n';
-        resetSteps += '9. Chromeでサイトに再アクセス\n\n';
+        // 権限エラーの場合の案内
+        if (error.message.includes('Permission') || error.message.includes('NotAllowed')) {
+          setTimeout(() => {
+            updateStatus('🔒 ブラウザ設定でカメラアクセスを許可してください', 'error');
+          }, 2000);
+        }
       }
-      
-      resetSteps += '🆘 それでもダメな場合:\n';
-      resetSteps += '• 別のブラウザアプリをインストール（Chrome ↔ Firefox）\n';
-      resetSteps += '• 端末の設定 → アプリ → ブラウザ → 権限 → カメラを確認\n';
-      resetSteps += '• 最終手段：「⌨️ 手動入力モード」で業務継続\n\n';
-      
-      resetSteps += '✅ 手動入力なら確実に動作します！';
-      
-      if (confirm('完全リセットを実行しますか？\n\n' + resetSteps)) {
-        updateStatus('🔄 上記手順を実行してください', 'info');
-      }
-    }
-
-    // 手動入力モード
-    function manualInput() {
-      document.getElementById('manualDialog').style.display = 'block';
-      
-      // 今日の日付をデフォルトで設定
-      const today = new Date();
-      const dateStr = today.getFullYear() + '/' + 
-                     String(today.getMonth() + 1).padStart(2, '0') + '/' + 
-                     String(today.getDate()).padStart(2, '0');
-      document.getElementById('manualDate').value = dateStr;
-      
-      // 最初のフィールドにフォーカス
-      setTimeout(() => {
-        document.getElementById('manualProduct').focus();
-      }, 100);
-    }
-
-    // 手動入力を閉じる
-    function closeManualInput() {
-      document.getElementById('manualDialog').style.display = 'none';
-      
-      // フィールドをクリア
-      document.getElementById('manualDate').value = '';
-      document.getElementById('manualProduct').value = '';
-      document.getElementById('manualQuantity').value = '';
-      document.getElementById('manualInternal').value = '';
-    }
-
-    // 手動入力を送信
-    function submitManualInput() {
-      const date = document.getElementById('manualDate').value.trim();
-      const product = document.getElementById('manualProduct').value.trim();
-      const quantity = parseInt(document.getElementById('manualQuantity').value);
-      const internal = document.getElementById('manualInternal').value.trim();
-      
-      // バリデーション
-      if (!date) {
-        alert('❌ 日付を入力してください');
-        return;
-      }
-      
-      if (!product) {
-        alert('❌ 客先品番を入力してください');
-        return;
-      }
-      
-      if (!quantity || quantity <= 0) {
-        alert('❌ 正しい数量を入力してください');
-        return;
-      }
-      
-      if (!internal) {
-        alert('❌ 社内管理品番を入力してください');
-        return;
-      }
-      
-      // 日付フォーマットチェック
-      if (!/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(date)) {
-        alert('❌ 日付はYYYY/MM/DD形式で入力してください');
-        return;
-      }
-      
-      // データ作成
-      pendingData = {
-        date: date,
-        productCode: product,
-        quantity: quantity,
-        internalCode: internal,
-        timestamp: new Date().toLocaleTimeString()
-      };
-      
-      // 確認ダイアログを表示
-      closeManualInput();
-      showConfirmDialog();
     }
 
     // カメラ停止
@@ -790,49 +405,101 @@
 
     // QRコード読み取り成功
     function onScanSuccess(decodedText) {
+      console.log('QRコード検出:', decodedText);
+      
       try {
+        // 読み取り音（振動）
+        if (navigator.vibrate) {
+          navigator.vibrate(200);
+        }
+        
+        // 一時的にスキャンを停止して重複を防ぐ
+        updateStatus('📖 QRコード読み取り中...', 'info');
+        
         // CSV形式解析
         const parts = parseCSV(decodedText);
+        console.log('解析結果:', parts);
+        
         if (parts.length !== 4) {
-          updateStatus('❌ QRコード形式エラー（4項目必要）', 'error');
+          updateStatus(`❌ 形式エラー: ${parts.length}項目（4項目必要）\n読み取り内容: ${decodedText}`, 'error');
+          setTimeout(() => {
+            updateStatus('📷 QRコードをカメラに映してください', 'success');
+          }, 3000);
           return;
         }
 
-        const [date, productCode, quantityStr, internalCode] = parts;
+        const [date, productCode, quantityStr, internalCode] = parts.map(p => p.trim());
         const quantity = parseInt(quantityStr);
 
+        // バリデーション
+        if (!date) {
+          updateStatus('❌ 日付が空です', 'error');
+          return;
+        }
+        if (!productCode) {
+          updateStatus('❌ 品番が空です', 'error');
+          return;
+        }
         if (isNaN(quantity) || quantity <= 0) {
-          updateStatus('❌ 数量が不正です', 'error');
+          updateStatus(`❌ 数量エラー: "${quantityStr}" (正の整数が必要)`, 'error');
+          return;
+        }
+        if (!internalCode) {
+          updateStatus('❌ 管理番号が空です', 'error');
           return;
         }
 
         pendingData = {
-          date: date.trim(),
-          productCode: productCode.trim(),
+          date: date,
+          productCode: productCode,
           quantity: quantity,
-          internalCode: internalCode.trim(),
-          timestamp: new Date().toLocaleTimeString()
+          internalCode: internalCode,
+          timestamp: new Date().toLocaleTimeString(),
+          rawData: decodedText // デバッグ用
         };
 
-        // バルクモードの場合は自動確認
-        if (isBulkMode && bulkModeSettings.autoConfirm) {
-          quickConfirmScan();
-        } else {
-          showConfirmDialog();
-        }
+        // 一時的にカメラを停止
+        pauseScanning();
+        showConfirmDialog();
         
       } catch (error) {
         console.error('QR解析エラー:', error);
-        updateStatus('❌ QRコード解析エラー', 'error');
+        updateStatus(`❌ 解析エラー: ${error.message}`, 'error');
+        setTimeout(() => {
+          updateStatus('📷 QRコードをカメラに映してください', 'success');
+        }, 2000);
       }
     }
 
     // QRコード読み取り失敗（正常）
     function onScanFailure(error) {
-      // 何もしない（スキャン待機中）
+      // 読み取り試行回数をカウント（デバッグ用）
+      if (!window.scanAttempts) window.scanAttempts = 0;
+      window.scanAttempts++;
+      
+      // 10秒ごとにヒントを表示
+      if (window.scanAttempts % 100 === 0) {
+        console.log('スキャン試行中...', window.scanAttempts);
+        updateStatus('📷 QRコードを枠内に合わせて少し離してください', 'info');
+      }
     }
 
-    // CSV解析
+    // スキャン一時停止
+    function pauseScanning() {
+      if (scanner && isScanning) {
+        // Html5Qrcodeは一時停止機能がないため、停止して再開する仕組み
+        window.scanningPaused = true;
+        updateStatus('📖 読み取り処理中...', 'info');
+      }
+    }
+
+    // スキャン再開
+    function resumeScanning() {
+      window.scanningPaused = false;
+      if (isScanning) {
+        updateStatus('📷 QRコードをカメラに映してください', 'success');
+      }
+    }
     function parseCSV(text) {
       const result = [];
       let current = '';
@@ -891,13 +558,22 @@
       pendingData = null;
       
       updateStatus(`✅ 登録完了！ (${totalCount}件目)`, 'success');
+      
+      // スキャンを再開
+      setTimeout(() => {
+        resumeScanning();
+      }, 1000);
     }
 
     // スキャンキャンセル
     function cancelScan() {
       confirmDialog.style.display = 'none';
       pendingData = null;
-      updateStatus('📷 スキャン待機中...', 'info');
+      
+      // スキャンを再開
+      setTimeout(() => {
+        resumeScanning();
+      }, 500);
     }
 
     // サマリー更新
