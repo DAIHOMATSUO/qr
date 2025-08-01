@@ -620,6 +620,8 @@
         
         // 要素が存在する場合のみ操作
         if (caseInput && extraInput && unitQuantity && calculationResult) {
+          console.log('✅ UI要素が正常に取得されました');
+          
           // 単位数量をセット（QRコードから読み取った数量）
           unitQuantity.value = pendingData.quantity;
           caseInput.value = 1; // デフォルト1箱
@@ -628,30 +630,52 @@
           // 計算結果を初期表示
           updateCalculation();
           
-          caseInput.focus();
-          caseInput.select(); // 全選択で入力しやすく
+          // 箱数入力欄にフォーカス（目立つように）
+          setTimeout(() => {
+            caseInput.focus();
+            caseInput.select(); // 全選択で入力しやすく
+            caseInput.style.borderColor = '#ff6b6b'; // 赤色で目立たせる
+            console.log('🎯 箱数入力欄にフォーカスしました');
+          }, 100);
           
           // イベントリスナーを一度だけ登録（重複防止）
           if (!caseInput.hasCalculationListener) {
-            caseInput.addEventListener('input', updateCalculation);
-            extraInput.addEventListener('input', updateCalculation);
+            caseInput.addEventListener('input', () => {
+              console.log('箱数変更:', caseInput.value);
+              updateCalculation();
+            });
+            extraInput.addEventListener('input', () => {
+              console.log('端数変更:', extraInput.value);
+              updateCalculation();
+            });
             caseInput.hasCalculationListener = true;
+            console.log('✅ イベントリスナーを登録しました');
           }
           
           if (!caseInput.hasEnterListener) {
             const enterHandler = function(e) {
+              console.log('キー押下:', e.key);
               if (e.key === 'Enter') {
+                console.log('Enterキーで登録実行');
                 confirmScan();
               }
             };
             caseInput.addEventListener('keydown', enterHandler);
             extraInput.addEventListener('keydown', enterHandler);
             caseInput.hasEnterListener = true;
+            console.log('✅ Enterキーリスナーを登録しました');
           }
         } else {
-          console.error('ケース入力要素が見つかりません');
+          console.error('❌ UI要素の取得に失敗:');
+          console.log('caseInput:', caseInput);
+          console.log('extraInput:', extraInput);
+          console.log('unitQuantity:', unitQuantity);
+          console.log('calculationResult:', calculationResult);
+          
           // フォールバック: シンプルな確認ダイアログ
-          if (confirm(`${pendingData.productCode} を ${pendingData.quantity}個で登録しますか？`)) {
+          const quantity = prompt(`${pendingData.productCode}\n数量を入力してください:`, pendingData.quantity);
+          if (quantity && !isNaN(quantity) && quantity > 0) {
+            pendingData.quantity = parseInt(quantity);
             confirmScan();
           } else {
             cancelScan();
@@ -822,30 +846,46 @@
     // クイック箱数設定（端数対応）
     function setQuickCases(cases, extra = 0) {
       try {
-        if (!caseInput || !extraInput) return;
+        console.log(`🚀 クイック設定: ${cases}箱 + ${extra}個`);
+        
+        if (!caseInput || !extraInput) {
+          console.error('❌ 入力要素が見つかりません');
+          return;
+        }
         
         caseInput.value = cases;
         extraInput.value = extra;
-        caseInput.style.borderColor = '#4caf50';
-        extraInput.style.borderColor = '#4caf50';
+        caseInput.style.borderColor = '#28a745';
+        extraInput.style.borderColor = '#28a745';
         updateCalculation();
+        
+        // フォーカスを当てる
         caseInput.focus();
+        
+        console.log('✅ クイック設定完了');
       } catch (error) {
-        console.error('クイック設定エラー:', error);
+        console.error('❌ クイック設定エラー:', error);
       }
     }
 
     // 端数クイック設定
     function setExtraQuantity(extra) {
       try {
-        if (!extraInput) return;
+        console.log(`➕ 端数設定: ${extra}個`);
+        
+        if (!extraInput) {
+          console.error('❌ 端数入力要素が見つかりません');
+          return;
+        }
         
         extraInput.value = extra;
-        extraInput.style.borderColor = '#4caf50';
+        extraInput.style.borderColor = '#17a2b8';
         updateCalculation();
         extraInput.focus();
+        
+        console.log('✅ 端数設定完了');
       } catch (error) {
-        console.error('端数設定エラー:', error);
+        console.error('❌ 端数設定エラー:', error);
       }
     }
 
