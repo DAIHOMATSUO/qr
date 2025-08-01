@@ -234,6 +234,7 @@
       <div id="reader"></div>
       <button id="startBtn" class="btn btn-primary">📷 カメラ起動</button>
       <button id="stopBtn" class="btn btn-danger hidden">⏹️ カメラ停止</button>
+      <button id="switchBtn" class="btn btn-secondary hidden" onclick="switchCamera()">🔄 カメラ切替</button>
       <div id="status" class="status status-info">📱 カメラ起動ボタンを押してください</div>
     </div>
     
@@ -256,10 +257,8 @@
     </div>
     
     <!-- テスト機能 -->
-    <button class="btn btn-secondary" onclick="testScan()">🧪 テスト読み取り</button>
     <button class="btn btn-secondary" onclick="checkCameraPermission()">🔍 カメラ設定確認</button>
-    <button class="btn btn-secondary" onclick="showQRTips()">💡 読み取りコツ</button>
-    <button class="btn btn-secondary" onclick="showDebugLog()">🐛 詳細ログ表示</button>
+    <button class="btn btn-secondary" onclick="diagnoseiPhoneCamera()" style="background-color: #007AFF;">📱 iPhone診断</button>
     
     <!-- データ表示 -->
     <div id="dataSection" class="hidden">
@@ -289,10 +288,13 @@
     let scanData = [];
     let totalCount = 0;
     let totalQuantity = 0;
+    let availableCameras = [];
+    let currentCameraIndex = 0;
 
     // DOM要素
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
+    const switchBtn = document.getElementById('switchBtn');
     const status = document.getElementById('status');
     const confirmDialog = document.getElementById('confirmDialog');
     const confirmText = document.getElementById('confirmText');
@@ -334,6 +336,8 @@
         
         // カメラリストを取得
         const cameras = await Html5Qrcode.getCameras();
+        availableCameras = cameras; // グローバルに保存
+        
         if (!cameras || cameras.length === 0) {
           throw new Error('カメラが見つかりません');
         }
@@ -349,34 +353,102 @@
           }
         }
 
-        // カメラ起動
-        await scanner.start(
-          selectedCamera.id,
-          {
+        // カメラ起動（iPhone用に最適化）
+        const cameraConfig = {
+          fps: 10,
+          qrbox: function(viewfinderWidth, viewfinderHeight) {
+            const minSize = Math.min(viewfinderWidth, viewfinderHeight);
+            const size = Math.floor(minSize * 0.8);
+            return { width: size, height: size };
+          },
+          aspectRatio: 1.0
+        };
+
+        // iPhone の場合は強制的に背面カメラ制約を追加
+        if (isIPhone) {
+          cameraConfig.videoConstraints = {
+            facingMode: { exact: "environment" },
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 }
+          };
+          console.log('iPhone用背面カメラ制約を設定');
+        }
+
+        try {
+          await scanner.start(selectedCamera.id, cameraConfig, onScanSuccess, onScanFailure);
+          console.log('カメラ起動成功:', selectedCamera.label);
+          
+        } catch (cameraError) {
+          console.log('制約付き起動失敗、制約なしで再試行:', cameraError);
+          
+          // iPhone で制約エラーの場合、制約なしで再試行
+          const fallbackConfig = {
             fps: 10,
             qrbox: function(viewfinderWidth, viewfinderHeight) {
               const minSize = Math.min(viewfinderWidth, viewfinderHeight);
               const size = Math.floor(minSize * 0.8);
               return { width: size, height: size };
             }
-          },
-          onScanSuccess,
-          onScanFailure
-        );
+          };
+          
+          await scanner.start(selectedCamera.id, fallbackConfig, onScanSuccess, onScanFailure);
+          console.log('フォールバック起動成功');
+        }
 
         isScanning = true;
         startBtn.classList.add('hidden');
         stopBtn.classList.remove('hidden');
-        updateStatus('📷 QRコードをカメラに映してください', 'success');
+        
+        // 複数カメラがある場合は切り替えボタンを表示
+        if (availableCameras.length > 1) {
+          switchBtn.classList.remove('hidden');
+        }
+        
+        updateStatus(`📷 カメラ起動成功 (${selectedCamera.label || 'カメラ'})`, 'success');
         
       } catch (error) {
         console.error('カメラ起動エラー:', error);
         updateStatus(`❌ ${error.message}`, 'error');
         
+        // iPhone特有のエラー対応
+        if (error.message.includes('OverconstrainedError') || 
+            error.message.includes('facingMode')) {
+          updateStatus('🔄 前面カメラで再試行中...', 'info');
+          
+          // 背面カメラが使えない場合は前面カメラを試行
+          try {
+            await scanner.start(
+              selectedCamera.id,
+              {
+                fps: 10,
+                qrbox: function(viewfinderWidth, viewfinderHeight) {
+                  const minSize = Math.min(viewfinderWidth, viewfinderHeight);
+                  const size = Math.floor(minSize * 0.8);
+                  return { width: size, height: size };
+                },
+                videoConstraints: {
+                  facingMode: "user" // 前面カメラ
+                }
+              },
+              onScanSuccess,
+              onScanFailure
+            );
+            
+            isScanning = true;
+            startBtn.classList.add('hidden');
+            stopBtn.classList.remove('hidden');
+            updateStatus('📷 前面カメラで起動しました。QRコードを読み取ってください', 'success');
+            
+          } catch (frontError) {
+            console.error('前面カメラ起動エラー:', frontError);
+            updateStatus(`❌ カメラ起動失敗: ${frontError.message}`, 'error');
+          }
+        }
+        
         // 権限エラーの場合の案内
         if (error.message.includes('Permission') || error.message.includes('NotAllowed')) {
           setTimeout(() => {
-            updateStatus('🔒 ブラウザ設定でカメラアクセスを許可してください', 'error');
+            updateStatus('🔒 iPhone設定→Safari→カメラでアクセスを許可してください', 'error');
           }, 2000);
         }
       }
@@ -392,6 +464,7 @@
         isScanning = false;
         startBtn.classList.remove('hidden');
         stopBtn.classList.add('hidden');
+        switchBtn.classList.add('hidden');
         updateStatus('⏹️ カメラを停止しました', 'info');
       } catch (error) {
         console.error('カメラ停止エラー:', error);
@@ -400,7 +473,59 @@
         isScanning = false;
         startBtn.classList.remove('hidden');
         stopBtn.classList.add('hidden');
+        switchBtn.classList.add('hidden');
         updateStatus('⏹️ カメラを停止しました', 'info');
+      }
+    }
+
+    // カメラ切り替え
+    async function switchCamera() {
+      if (!isScanning || !availableCameras || availableCameras.length < 2) {
+        return;
+      }
+
+      try {
+        updateStatus('🔄 カメラを切り替え中...', 'info');
+        
+        // 現在のカメラを停止
+        if (scanner) {
+          await scanner.stop();
+        }
+
+        // 次のカメラに切り替え
+        currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
+        const nextCamera = availableCameras[currentCameraIndex];
+        
+        console.log('切り替え先カメラ:', nextCamera.label);
+
+        // 新しいカメラで起動
+        scanner = new Html5Qrcode("reader");
+        
+        await scanner.start(
+          nextCamera.id,
+          {
+            fps: 10,
+            qrbox: function(viewfinderWidth, viewfinderHeight) {
+              const minSize = Math.min(viewfinderWidth, viewfinderHeight);
+              const size = Math.floor(minSize * 0.8);
+              return { width: size, height: size };
+            }
+          },
+          onScanSuccess,
+          onScanFailure
+        );
+
+        updateStatus(`🔄 カメラ切り替え完了 (${nextCamera.label || `カメラ${currentCameraIndex + 1}`})`, 'success');
+
+      } catch (error) {
+        console.error('カメラ切り替えエラー:', error);
+        updateStatus(`❌ 切り替え失敗: ${error.message}`, 'error');
+        
+        // エラー時は停止状態に戻す
+        isScanning = false;
+        startBtn.classList.remove('hidden');
+        stopBtn.classList.add('hidden');
+        switchBtn.classList.add('hidden');
       }
     }
 
@@ -729,15 +854,6 @@
         saveData();
         updateStatus('🗑️ データをクリアしました', 'info');
       }
-    }
-
-    // テストスキャン
-    function testScan() {
-      const testData = '"2025/07/22","85244-63R20-5PKCO","18","SNCA00000090"';
-      updateStatus('🧪 テストデータを読み取り中...', 'info');
-      setTimeout(() => {
-        onScanSuccess(testData);
-      }, 500);
     }
 
     // カメラ権限チェック
