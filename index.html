@@ -331,7 +331,7 @@
     };
 
     // ケース入力用の要素は後で取得
-    let caseInput, unitQuantity, calculationResult;
+    let caseInput, extraInput, unitQuantity, calculationResult;
 
     // 初期化
     document.addEventListener('DOMContentLoaded', function() {
@@ -614,14 +614,16 @@
         
         // ケース入力要素を取得（安全に）
         caseInput = document.getElementById('caseInput');
+        extraInput = document.getElementById('extraInput');
         unitQuantity = document.getElementById('unitQuantity');
         calculationResult = document.getElementById('calculationResult');
         
         // 要素が存在する場合のみ操作
-        if (caseInput && unitQuantity && calculationResult) {
+        if (caseInput && extraInput && unitQuantity && calculationResult) {
           // 単位数量をセット（QRコードから読み取った数量）
           unitQuantity.value = pendingData.quantity;
-          caseInput.value = 1; // デフォルト1ケース
+          caseInput.value = 1; // デフォルト1箱
+          extraInput.value = 0; // デフォルト端数なし
           
           // 計算結果を初期表示
           updateCalculation();
@@ -632,15 +634,18 @@
           // イベントリスナーを一度だけ登録（重複防止）
           if (!caseInput.hasCalculationListener) {
             caseInput.addEventListener('input', updateCalculation);
+            extraInput.addEventListener('input', updateCalculation);
             caseInput.hasCalculationListener = true;
           }
           
           if (!caseInput.hasEnterListener) {
-            caseInput.addEventListener('keydown', function(e) {
+            const enterHandler = function(e) {
               if (e.key === 'Enter') {
                 confirmScan();
               }
-            });
+            };
+            caseInput.addEventListener('keydown', enterHandler);
+            extraInput.addEventListener('keydown', enterHandler);
             caseInput.hasEnterListener = true;
           }
         } else {
@@ -675,29 +680,45 @@
         let finalQuantity = pendingData.quantity;
         let calculationInfo = `${pendingData.quantity}個`;
         let caseCount = 1;
+        let extraCount = 0;
         let unitQty = pendingData.quantity;
         
         // ケース入力がある場合の処理
-        if (caseInput && unitQuantity && caseInput.value) {
-          caseCount = parseInt(caseInput.value);
-          unitQty = parseInt(unitQuantity.value);
+        if (caseInput && extraInput && unitQuantity && caseInput.value !== null) {
+          caseCount = parseInt(caseInput.value) || 0;
+          extraCount = parseInt(extraInput.value) || 0;
+          unitQty = parseInt(unitQuantity.value) || 0;
           
-          // ケース数バリデーション
-          if (isNaN(caseCount) || caseCount <= 0) {
+          // バリデーション
+          if (caseCount < 0 || extraCount < 0) {
+            if (caseCount < 0) caseInput.style.borderColor = '#f44336';
+            if (extraCount < 0) extraInput.style.borderColor = '#f44336';
+            return;
+          }
+          
+          if (caseCount === 0 && extraCount === 0) {
             caseInput.style.borderColor = '#f44336';
             caseInput.focus();
             return;
           }
           
-          // 合計数量を計算
-          finalQuantity = caseCount * unitQty;
-          calculationInfo = `${caseCount}ケース × ${unitQty}個 = ${finalQuantity}個`;
+          // 合計数量を計算: (箱数 × 単位数量) + 端数
+          finalQuantity = (caseCount * unitQty) + extraCount;
+          
+          if (caseCount > 0 && extraCount > 0) {
+            calculationInfo = `${caseCount}箱 × ${unitQty}個 + ${extraCount}個 = ${finalQuantity}個`;
+          } else if (caseCount > 0) {
+            calculationInfo = `${caseCount}箱 × ${unitQty}個 = ${finalQuantity}個`;
+          } else {
+            calculationInfo = `${extraCount}個`;
+          }
         }
         
-        // データを更新（ケース情報も保存）
+        // データを更新（箱数と端数情報も保存）
         const finalData = {
           ...pendingData,
           caseCount: caseCount,
+          extraCount: extraCount,
           unitQuantity: unitQty,
           quantity: finalQuantity,
           calculationInfo: calculationInfo
@@ -717,6 +738,9 @@
         // 入力欄をリセット
         if (caseInput) {
           caseInput.style.borderColor = '#ddd';
+        }
+        if (extraInput) {
+          extraInput.style.borderColor = '#ddd';
         }
         
         updateStatus(`✅ 登録完了！(${finalQuantity}個)`, 'success');
@@ -743,6 +767,10 @@
           caseInput.style.borderColor = '#ddd';
           caseInput.value = '1';
         }
+        if (extraInput) {
+          extraInput.style.borderColor = '#ddd';
+          extraInput.value = '0';
+        }
         if (unitQuantity) {
           unitQuantity.value = '';
         }
@@ -757,36 +785,67 @@
     // 計算結果更新（エラーハンドリング強化）
     function updateCalculation() {
       try {
-        if (!caseInput || !unitQuantity || !calculationResult) return;
+        if (!caseInput || !extraInput || !unitQuantity || !calculationResult) return;
         
-        const caseCount = parseInt(caseInput.value) || 1;
+        const caseCount = parseInt(caseInput.value) || 0;
+        const extraCount = parseInt(extraInput.value) || 0;
         const unitQty = parseInt(unitQuantity.value) || 0;
-        const total = caseCount * unitQty;
         
-        calculationResult.textContent = `${caseCount}ケース × ${unitQty}個 = ${total}個`;
+        // 合計計算: (箱数 × 単位数量) + 端数
+        const total = (caseCount * unitQty) + extraCount;
+        
+        // 表示文字列を作成
+        let displayText = '';
+        if (caseCount > 0 && extraCount > 0) {
+          displayText = `${caseCount}箱 × ${unitQty}個 + ${extraCount}個 = ${total}個`;
+        } else if (caseCount > 0) {
+          displayText = `${caseCount}箱 × ${unitQty}個 = ${total}個`;
+        } else if (extraCount > 0) {
+          displayText = `${extraCount}個 = ${total}個`;
+        } else {
+          displayText = `0箱 × ${unitQty}個 + 0個 = 0個`;
+        }
+        
+        calculationResult.textContent = displayText;
         
         // 計算結果に応じて色を変更
         if (total > 0) {
           calculationResult.style.color = '#0d47a1';
         } else {
-          calculationResult.style.color = '#666';
+          calculationResult.style.color = '#999';
         }
       } catch (error) {
         console.error('計算更新エラー:', error);
       }
     }
 
-    // クイックケース数設定（エラーハンドリング強化）
-    function setQuickCases(cases) {
+    // クイック箱数設定（端数対応）
+    function setQuickCases(cases, extra = 0) {
       try {
-        if (!caseInput) return;
+        if (!caseInput || !extraInput) return;
         
         caseInput.value = cases;
-        caseInput.style.borderColor = '#4caf50'; // 緑色でハイライト
+        extraInput.value = extra;
+        caseInput.style.borderColor = '#4caf50';
+        extraInput.style.borderColor = '#4caf50';
         updateCalculation();
         caseInput.focus();
       } catch (error) {
         console.error('クイック設定エラー:', error);
+      }
+    }
+
+    // 端数クイック設定
+    function setExtraQuantity(extra) {
+      try {
+        if (!extraInput) return;
+        
+        extraInput.value = extra;
+        extraInput.style.borderColor = '#4caf50';
+        updateCalculation();
+        extraInput.focus();
+      } catch (error) {
+        console.error('端数設定エラー:', error);
       }
     }
 
@@ -863,9 +922,9 @@
       
       try {
         const csv = [
-          '\uFEFF日付,品番,ケース数,単位数量,合計数量,管理番号,読み取り時刻',
+          '\uFEFF日付,品番,箱数,端数,単位数量,合計数量,管理番号,読み取り時刻',
           ...scanData.map(item => 
-            `${item.date},${item.productCode},${item.caseCount || 1},${item.unitQuantity || item.quantity},${item.quantity},${item.internalCode},${item.timestamp}`
+            `${item.date},${item.productCode},${item.caseCount || 0},${item.extraCount || 0},${item.unitQuantity || item.quantity},${item.quantity},${item.internalCode},${item.timestamp}`
           )
         ].join('\n');
         
