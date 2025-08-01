@@ -259,6 +259,7 @@
     <!-- テスト機能 -->
     <button class="btn btn-secondary" onclick="checkCameraPermission()">🔍 カメラ設定確認</button>
     <button class="btn btn-secondary" onclick="diagnoseiPhoneCamera()" style="background-color: #007AFF;">📱 iPhone診断</button>
+    <button class="btn btn-secondary" onclick="diagnoseAndroidCamera()" style="background-color: #34A853;">🤖 Android診断</button>
     
     <!-- データ表示 -->
     <div id="dataSection" class="hidden">
@@ -353,7 +354,7 @@
           }
         }
 
-        // カメラ起動（iPhone用に最適化）
+        // カメラ起動（デバイス別最適化）
         const cameraConfig = {
           fps: 10,
           qrbox: function(viewfinderWidth, viewfinderHeight) {
@@ -364,15 +365,25 @@
           aspectRatio: 1.0
         };
 
-        // iPhone の場合は強制的に背面カメラ制約を追加
+        // デバイス別の制約設定
         if (isIPhone) {
+          // iPhone用制約
           cameraConfig.videoConstraints = {
             facingMode: { exact: "environment" },
             width: { ideal: 1280, max: 1920 },
             height: { ideal: 720, max: 1080 }
           };
-          console.log('iPhone用背面カメラ制約を設定');
+          console.log('iPhone用制約を設定');
+        } else if (isAndroid) {
+          // Android用制約（より緩い制約）
+          cameraConfig.videoConstraints = {
+            facingMode: "environment", // exactを使わない
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          };
+          console.log('Android用制約を設定');
         }
+        // その他のデバイスは制約なし
 
         try {
           await scanner.start(selectedCamera.id, cameraConfig, onScanSuccess, onScanFailure);
@@ -381,7 +392,7 @@
         } catch (cameraError) {
           console.log('制約付き起動失敗、制約なしで再試行:', cameraError);
           
-          // iPhone で制約エラーの場合、制約なしで再試行
+          // 制約エラーの場合、制約なしで再試行
           const fallbackConfig = {
             fps: 10,
             qrbox: function(viewfinderWidth, viewfinderHeight) {
