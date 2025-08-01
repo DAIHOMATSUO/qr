@@ -324,6 +324,7 @@
       status: document.getElementById('status'),
       confirmDialog: document.getElementById('confirmDialog'),
       confirmText: document.getElementById('confirmText'),
+      quantityInput: document.getElementById('quantityInput'),
       count: document.getElementById('count'),
       total: document.getElementById('total'),
       dataSection: document.getElementById('dataSection'),
@@ -602,19 +603,43 @@
       if (!pendingData) return;
       
       elements.confirmText.innerHTML = `
-        <strong>📦 登録確認</strong><br><br>
-        📅 ${pendingData.date}<br>
-        🏷️ ${pendingData.productCode}<br>
-        🔢 ${pendingData.quantity}個<br>
-        📋 ${pendingData.internalCode}
+        <strong>📦 スキャン内容確認</strong><br><br>
+        📅 日付: ${pendingData.date}<br>
+        🏷️ 品番: ${pendingData.productCode}<br>
+        📋 管理番号: ${pendingData.internalCode}
       `;
       
+      // 数量入力欄にQRコードの数量をセット
+      elements.quantityInput.value = pendingData.quantity;
+      elements.quantityInput.focus();
+      elements.quantityInput.select(); // 全選択で入力しやすく
+      
       elements.confirmDialog.style.display = 'block';
+      
+      // Enterキーで登録
+      elements.quantityInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          confirmScan();
+        }
+      });
     }
 
     // スキャン確定
     function confirmScan() {
       if (!pendingData) return;
+      
+      // 入力された数量を取得
+      const inputQuantity = parseInt(elements.quantityInput.value);
+      
+      // 数量バリデーション
+      if (isNaN(inputQuantity) || inputQuantity <= 0) {
+        elements.quantityInput.style.borderColor = '#f44336';
+        elements.quantityInput.focus();
+        return;
+      }
+      
+      // 数量を更新
+      pendingData.quantity = inputQuantity;
       
       scanData.push({...pendingData});
       totalCount++;
@@ -627,19 +652,34 @@
       elements.confirmDialog.style.display = 'none';
       pendingData = null;
       
-      updateStatus(`✅ 登録完了！ (${totalCount}件)`, 'success');
+      // 入力欄をリセット
+      elements.quantityInput.style.borderColor = '#ddd';
+      
+      updateStatus(`✅ ${inputQuantity}個で登録完了！ (${totalCount}件)`, 'success');
       
       // 短時間で自動再開
       setTimeout(() => {
         updateStatus('📷 QRコードを枠内に合わせてください', 'success');
-      }, 800);
+      }, 1000);
     }
 
     // スキャンキャンセル
     function cancelScan() {
       elements.confirmDialog.style.display = 'none';
       pendingData = null;
+      
+      // 入力欄をリセット
+      elements.quantityInput.style.borderColor = '#ddd';
+      elements.quantityInput.value = '';
+      
       updateStatus('📷 QRコードを枠内に合わせてください', 'success');
+    }
+
+    // クイック数量設定
+    function setQuickQuantity(qty) {
+      elements.quantityInput.value = qty;
+      elements.quantityInput.style.borderColor = '#4caf50'; // 緑色でハイライト
+      elements.quantityInput.focus();
     }
 
     // サマリー更新
