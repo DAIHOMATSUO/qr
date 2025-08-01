@@ -259,6 +259,7 @@
     <button class="btn btn-secondary" onclick="testScan()">🧪 テスト読み取り</button>
     <button class="btn btn-secondary" onclick="checkCameraPermission()">🔍 カメラ設定確認</button>
     <button class="btn btn-secondary" onclick="showQRTips()">💡 読み取りコツ</button>
+    <button class="btn btn-secondary" onclick="showDebugLog()">🐛 詳細ログ表示</button>
     
     <!-- データ表示 -->
     <div id="dataSection" class="hidden">
@@ -405,7 +406,10 @@
 
     // QRコード読み取り成功
     function onScanSuccess(decodedText) {
-      console.log('QRコード検出:', decodedText);
+      console.log('=== QRコード読み取り成功 ===');
+      console.log('生データ:', decodedText);
+      console.log('データ長:', decodedText.length);
+      console.log('文字コード:', Array.from(decodedText).map(c => c.charCodeAt(0)));
       
       try {
         // 読み取り音（振動）
@@ -416,36 +420,70 @@
         // 一時的にスキャンを停止して重複を防ぐ
         updateStatus('📖 QRコード読み取り中...', 'info');
         
-        // CSV形式解析
-        const parts = parseCSV(decodedText);
-        console.log('解析結果:', parts);
+        // データの前処理（不要な文字を除去）
+        let cleanedText = decodedText
+          .replace(/[\r\n\t]/g, '') // 改行・タブを除去
+          .replace(/^\s+|\s+$/g, '') // 前後の空白を除去
+          .replace(/[""]/g, '"'); // 全角クォートを半角に変換
         
-        if (parts.length !== 4) {
-          updateStatus(`❌ 形式エラー: ${parts.length}項目（4項目必要）\n読み取り内容: ${decodedText}`, 'error');
+        console.log('クリーニング後:', cleanedText);
+        
+        // CSV形式解析
+        const parts = parseCSV(cleanedText);
+        console.log('解析結果:', parts);
+        console.log('項目数:', parts.length);
+        parts.forEach((part, index) => {
+          console.log(`項目${index + 1}:`, `"${part}" (長さ:${part.length})`);
+        });
+        
+        // より柔軟な形式チェック
+        if (parts.length < 3) {
+          const errorMsg = `❌ 項目数不足: ${parts.length}項目\n最低3項目（日付,品番,数量）が必要\n\n読み取り内容:\n${decodedText}\n\n解析結果:\n${parts.map((p, i) => `${i+1}: "${p}"`).join('\n')}`;
+          updateStatus(errorMsg, 'error');
+          console.error('項目数エラー:', errorMsg);
           setTimeout(() => {
             updateStatus('📷 QRコードをカメラに映してください', 'success');
-          }, 3000);
+          }, 5000);
           return;
+        }
+        
+        // 4項目未満の場合は空文字で補完
+        while (parts.length < 4) {
+          parts.push('');
         }
 
         const [date, productCode, quantityStr, internalCode] = parts.map(p => p.trim());
+        
+        console.log('=== フィールド詳細 ===');
+        console.log('日付:', `"${date}"`);
+        console.log('品番:', `"${productCode}"`);
+        console.log('数量文字列:', `"${quantityStr}"`);
+        console.log('管理番号:', `"${internalCode}"`);
+        
         const quantity = parseInt(quantityStr);
+        console.log('数量（変換後）:', quantity);
 
-        // バリデーション
+        // バリデーション（より詳細なエラーメッセージ）
+        let errors = [];
+        
         if (!date) {
-          updateStatus('❌ 日付が空です', 'error');
-          return;
+          errors.push('日付が空です');
         }
         if (!productCode) {
-          updateStatus('❌ 品番が空です', 'error');
-          return;
+          errors.push('品番が空です');
         }
         if (isNaN(quantity) || quantity <= 0) {
-          updateStatus(`❌ 数量エラー: "${quantityStr}" (正の整数が必要)`, 'error');
-          return;
+          errors.push(`数量エラー: "${quantityStr}" → ${quantity} (正の整数が必要)`);
         }
-        if (!internalCode) {
-          updateStatus('❌ 管理番号が空です', 'error');
+        // 管理番号は空でも許可（オプション）
+        
+        if (errors.length > 0) {
+          const errorMsg = `❌ データエラー:\n${errors.join('\n')}\n\n元データ: ${decodedText}`;
+          updateStatus(errorMsg, 'error');
+          console.error('バリデーションエラー:', errors);
+          setTimeout(() => {
+            updateStatus('📷 QRコードをカメラに映してください', 'success');
+          }, 4000);
           return;
         }
 
@@ -453,21 +491,30 @@
           date: date,
           productCode: productCode,
           quantity: quantity,
-          internalCode: internalCode,
+          internalCode: internalCode || '未設定', // 空の場合のデフォルト値
           timestamp: new Date().toLocaleTimeString(),
           rawData: decodedText // デバッグ用
         };
+
+        console.log('=== 処理成功 ===');
+        console.log('確定データ:', pendingData);
 
         // 一時的にカメラを停止
         pauseScanning();
         showConfirmDialog();
         
       } catch (error) {
-        console.error('QR解析エラー:', error);
-        updateStatus(`❌ 解析エラー: ${error.message}`, 'error');
+        console.error('=== QR解析エラー ===');
+        console.error('エラー:', error);
+        console.error('スタックトレース:', error.stack);
+        console.error('元データ:', decodedText);
+        
+        const errorMsg = `❌ 解析エラー: ${error.message}\n\n元データ:\n${decodedText}\n\nブラウザのコンソールで詳細を確認してください`;
+        updateStatus(errorMsg, 'error');
+        
         setTimeout(() => {
           updateStatus('📷 QRコードをカメラに映してください', 'success');
-        }, 2000);
+        }, 4000);
       }
     }
 
