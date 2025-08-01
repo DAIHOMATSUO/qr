@@ -672,14 +672,8 @@
           console.log('unitQuantity:', unitQuantity);
           console.log('calculationResult:', calculationResult);
           
-          // フォールバック: シンプルな確認ダイアログ
-          const quantity = prompt(`${pendingData.productCode}\n数量を入力してください:`, pendingData.quantity);
-          if (quantity && !isNaN(quantity) && quantity > 0) {
-            pendingData.quantity = parseInt(quantity);
-            confirmScan();
-          } else {
-            cancelScan();
-          }
+          // フォールバック: 箱数・端数入力ダイアログ
+          showSimpleQuantityDialog();
           return;
         }
         
@@ -886,6 +880,90 @@
         console.log('✅ 端数設定完了');
       } catch (error) {
         console.error('❌ 端数設定エラー:', error);
+      }
+    }
+
+    // シンプル数量入力ダイアログ（フォールバック）
+    function showSimpleQuantityDialog() {
+      try {
+        const unitQty = pendingData.quantity;
+        
+        // ステップ1: 箱数入力
+        const caseCountStr = prompt(
+          `📦 ${pendingData.productCode}\n\n` +
+          `1箱あたり: ${unitQty}個\n\n` +
+          `何箱ありますか？`,
+          '1'
+        );
+        
+        if (caseCountStr === null) {
+          cancelScan();
+          return;
+        }
+        
+        const caseCount = parseInt(caseCountStr) || 0;
+        
+        // ステップ2: 端数入力
+        const extraCountStr = prompt(
+          `📦 ${pendingData.productCode}\n\n` +
+          `箱数: ${caseCount}箱\n` +
+          `1箱あたり: ${unitQty}個\n` +
+          `箱分の計: ${caseCount * unitQty}個\n\n` +
+          `端数は何個ありますか？`,
+          '0'
+        );
+        
+        if (extraCountStr === null) {
+          cancelScan();
+          return;
+        }
+        
+        const extraCount = parseInt(extraCountStr) || 0;
+        
+        // ステップ3: 計算結果確認
+        const totalQty = (caseCount * unitQty) + extraCount;
+        let calculationText = '';
+        
+        if (caseCount > 0 && extraCount > 0) {
+          calculationText = `${caseCount}箱 × ${unitQty}個 + ${extraCount}個 = ${totalQty}個`;
+        } else if (caseCount > 0) {
+          calculationText = `${caseCount}箱 × ${unitQty}個 = ${totalQty}個`;
+        } else {
+          calculationText = `${extraCount}個 = ${totalQty}個`;
+        }
+        
+        const confirmResult = confirm(
+          `📦 ${pendingData.productCode}\n\n` +
+          `計算結果:\n${calculationText}\n\n` +
+          `この内容で登録しますか？`
+        );
+        
+        if (confirmResult && totalQty > 0) {
+          // pendingDataを更新
+          pendingData = {
+            ...pendingData,
+            caseCount: caseCount,
+            extraCount: extraCount,
+            unitQuantity: unitQty,
+            quantity: totalQty,
+            calculationInfo: calculationText
+          };
+          
+          confirmScan();
+        } else {
+          cancelScan();
+        }
+        
+      } catch (error) {
+        console.error('❌ シンプルダイアログエラー:', error);
+        // 最終フォールバック
+        const quantity = prompt(`${pendingData.productCode}\n最終数量を入力:`, pendingData.quantity);
+        if (quantity && !isNaN(quantity) && quantity > 0) {
+          pendingData.quantity = parseInt(quantity);
+          confirmScan();
+        } else {
+          cancelScan();
+        }
       }
     }
 
