@@ -73,6 +73,21 @@
       color: #b0d4ff;
       margin-top: 6px;
     }
+    .history-card {
+      margin-top: 16px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid #5a84c8;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 13px;
+    }
+    .history-entry {
+      border-bottom: 1px solid #3a6cc4;
+      padding: 4px 0;
+    }
+    .history-entry:last-child {
+      border-bottom: none;
+    }
   </style>
 </head>
 <body>
@@ -113,10 +128,21 @@
       <button class="btn btn-secondary" onclick="exportData()">💾 CSV出力</button>
       <button class="btn btn-secondary" onclick="clearData()">🗑️ クリア</button>
     </div>
+
+    <!-- 履歴表示 -->
+    <div id="history" class="history-card"></div>
   </div>
 
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <script>
+    let scanner;
+    let currentCameraIndex = 0;
+    let cameras = [];
+    let scanCount = 0;
+    let totalQuantity = 0;
+    let scanHistory = JSON.parse(localStorage.getItem('scanHistory')) || [];
+
+    const reader = document.getElementById('reader');
     const caseInput = document.getElementById('caseInput');
     const extraInput = document.getElementById('extraInput');
     const unitInput = document.getElementById('unitQuantity');
@@ -124,9 +150,52 @@
     const countDisplay = document.getElementById('count');
     const totalDisplay = document.getElementById('total');
     const statusDisplay = document.getElementById('status');
+    const historyDisplay = document.getElementById('history');
 
-    let scanCount = 0;
-    let totalQuantity = 0;
+    async function startCamera() {
+      try {
+        scanner = new Html5Qrcode("reader");
+        cameras = await Html5Qrcode.getCameras();
+        if (cameras.length === 0) throw new Error("カメラが見つかりません");
+
+        await scanner.start(
+          cameras[currentCameraIndex].id,
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          onScanSuccess
+        );
+        statusDisplay.textContent = `📷 ${cameras[currentCameraIndex].label} 使用中`;
+      } catch (err) {
+        statusDisplay.textContent = `❌ カメラ起動失敗: ${err.message}`;
+      }
+    }
+
+    async function stopCamera() {
+      if (scanner) {
+        await scanner.stop();
+        statusDisplay.textContent = "⏹️ カメラを停止しました";
+      }
+    }
+
+    async function switchCamera() {
+      if (!cameras.length) return;
+      currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+      await stopCamera();
+      await startCamera();
+    }
+
+    function onScanSuccess(decodedText) {
+      try {
+        const parts = decodedText.split(',');
+        const quantity = parseInt(parts[2]) || 0;
+        unitInput.value = quantity;
+        caseInput.value = 1;
+        extraInput.value = 0;
+        updateCalculation();
+        confirmScan();
+      } catch (e) {
+        statusDisplay.textContent = `❌ 読み取り失敗: ${e.message}`;
+      }
+    }
 
     function updateCalculation() {
       const cases = parseInt(caseInput.value) || 0;
@@ -136,21 +205,69 @@
       calcDisplay.textContent = `合計数量: ${total}個`;
     }
 
-    [caseInput, extraInput, unitInput].forEach(input => {
-      input.addEventListener('input', updateCalculation);
-    });
+    function confirmScan() {
+      const cases = parseInt(caseInput.value) || 0;
+      const extras = parseInt(extraInput.value) || 0;
+      const unitQty = parseInt(unitInput.value) || 0;
+      const total = (cases * unitQty) + extras;
+      const entry = {
+        time: new Date().toLocaleTimeString(),
+        unitQty, cases, extras, total
+      };
+      scanHistory.push(entry);
+      if (scanHistory.length > 10) scanHistory.shift();
+      localStorage.setItem('scanHistory', JSON.stringify(scanHistory));
+
+      scanCount++;
+      totalQuantity += total;
+      countDisplay.textContent = `${scanCount}件`;
+      totalDisplay.textContent = `${totalQuantity}個`;
+      statusDisplay.textContent = `✅ 登録完了 (${total}個)`;
+      updateHistory();
+    }
 
     function exportData() {
-      alert('CSV出力機能は未実装です');
+      if (scanHistory.length === 0) {
+        alert('データがありません');
+        return;
+      }
+      const header = '時刻,箱数,端数,入り数,合計数量\n';
+      const csv = scanHistory.map(e => `${e.time},${e.cases},${e.extras},${e.unitQty},${e.total}`).join('\n');
+      const blob = new Blob([header + csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'scan_data.csv';
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
     function clearData() {
       scanCount = 0;
       totalQuantity = 0;
+      scanHistory = [];
+      localStorage.removeItem('scanHistory');
       countDisplay.textContent = '0件';
       totalDisplay.textContent = '0個';
       statusDisplay.textContent = '📱 スキャン開始ボタンを押してください';
+      updateHistory();
     }
+
+    function updateHistory() {
+      historyDisplay.innerHTML = scanHistory.slice().reverse().map(e =>
+        `<div class="history-entry">🕒${e.time}：${e.cases}箱×${e.unitQty} + ${e.extras} = ${e.total}個</div>`
+      ).join('');
+    }
+
+    [caseInput, extraInput, unitInput].forEach(input => {
+      input.addEventListener('input', updateCalculation);
+    });
+
+    document.getElementById('startBtn').onclick = startCamera;
+    document.getElementById('stopBtn').onclick = stopCamera;
+    document.getElementById('switchBtn').onclick = switchCamera;
+
+    updateHistory();
   </script>
 </body>
 </html>
