@@ -324,7 +324,9 @@
       status: document.getElementById('status'),
       confirmDialog: document.getElementById('confirmDialog'),
       confirmText: document.getElementById('confirmText'),
-      quantityInput: document.getElementById('quantityInput'),
+      caseInput: document.getElementById('caseInput'),
+      unitQuantity: document.getElementById('unitQuantity'),
+      calculationResult: document.getElementById('calculationResult'),
       count: document.getElementById('count'),
       total: document.getElementById('total'),
       dataSection: document.getElementById('dataSection'),
@@ -609,15 +611,22 @@
         📋 管理番号: ${pendingData.internalCode}
       `;
       
-      // 数量入力欄にQRコードの数量をセット
-      elements.quantityInput.value = pendingData.quantity;
-      elements.quantityInput.focus();
-      elements.quantityInput.select(); // 全選択で入力しやすく
+      // 単位数量をセット（QRコードから読み取った数量）
+      elements.unitQuantity.value = pendingData.quantity;
+      elements.caseInput.value = 1; // デフォルト1ケース
+      
+      // 計算結果を初期表示
+      updateCalculation();
       
       elements.confirmDialog.style.display = 'block';
+      elements.caseInput.focus();
+      elements.caseInput.select(); // 全選択で入力しやすく
+      
+      // ケース数変更時の計算更新
+      elements.caseInput.addEventListener('input', updateCalculation);
       
       // Enterキーで登録
-      elements.quantityInput.addEventListener('keydown', function(e) {
+      elements.caseInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
           confirmScan();
         }
@@ -628,22 +637,32 @@
     function confirmScan() {
       if (!pendingData) return;
       
-      // 入力された数量を取得
-      const inputQuantity = parseInt(elements.quantityInput.value);
+      // 入力されたケース数を取得
+      const caseCount = parseInt(elements.caseInput.value);
+      const unitQty = parseInt(elements.unitQuantity.value);
       
-      // 数量バリデーション
-      if (isNaN(inputQuantity) || inputQuantity <= 0) {
-        elements.quantityInput.style.borderColor = '#f44336';
-        elements.quantityInput.focus();
+      // ケース数バリデーション
+      if (isNaN(caseCount) || caseCount <= 0) {
+        elements.caseInput.style.borderColor = '#f44336';
+        elements.caseInput.focus();
         return;
       }
       
-      // 数量を更新
-      pendingData.quantity = inputQuantity;
+      // 合計数量を計算
+      const totalQuantity = caseCount * unitQty;
       
-      scanData.push({...pendingData});
+      // データを更新（ケース情報も保存）
+      const finalData = {
+        ...pendingData,
+        caseCount: caseCount,
+        unitQuantity: unitQty,
+        quantity: totalQuantity,
+        calculationInfo: `${caseCount}ケース × ${unitQty}個 = ${totalQuantity}個`
+      };
+      
+      scanData.push(finalData);
       totalCount++;
-      totalQuantity += pendingData.quantity;
+      totalQuantity += finalData.quantity;
       
       updateSummary();
       updateDataDisplay();
@@ -653,14 +672,14 @@
       pendingData = null;
       
       // 入力欄をリセット
-      elements.quantityInput.style.borderColor = '#ddd';
+      elements.caseInput.style.borderColor = '#ddd';
       
-      updateStatus(`✅ ${inputQuantity}個で登録完了！ (${totalCount}件)`, 'success');
+      updateStatus(`✅ ${caseCount}ケース(${totalQuantity}個)で登録完了！`, 'success');
       
       // 短時間で自動再開
       setTimeout(() => {
         updateStatus('📷 QRコードを枠内に合わせてください', 'success');
-      }, 1000);
+      }, 1200);
     }
 
     // スキャンキャンセル
@@ -669,17 +688,35 @@
       pendingData = null;
       
       // 入力欄をリセット
-      elements.quantityInput.style.borderColor = '#ddd';
-      elements.quantityInput.value = '';
+      elements.caseInput.style.borderColor = '#ddd';
+      elements.caseInput.value = '1';
+      elements.unitQuantity.value = '';
       
       updateStatus('📷 QRコードを枠内に合わせてください', 'success');
     }
 
-    // クイック数量設定
-    function setQuickQuantity(qty) {
-      elements.quantityInput.value = qty;
-      elements.quantityInput.style.borderColor = '#4caf50'; // 緑色でハイライト
-      elements.quantityInput.focus();
+    // 計算結果更新
+    function updateCalculation() {
+      const caseCount = parseInt(elements.caseInput.value) || 1;
+      const unitQty = parseInt(elements.unitQuantity.value) || 0;
+      const total = caseCount * unitQty;
+      
+      elements.calculationResult.textContent = `${caseCount}ケース × ${unitQty}個 = ${total}個`;
+      
+      // 計算結果に応じて色を変更
+      if (total > 0) {
+        elements.calculationResult.style.color = '#0d47a1';
+      } else {
+        elements.calculationResult.style.color = '#666';
+      }
+    }
+
+    // クイックケース数設定
+    function setQuickCases(cases) {
+      elements.caseInput.value = cases;
+      elements.caseInput.style.borderColor = '#4caf50'; // 緑色でハイライト
+      updateCalculation();
+      elements.caseInput.focus();
     }
 
     // サマリー更新
@@ -701,7 +738,8 @@
       const recent = scanData.slice(-10).reverse();
       elements.dataList.innerHTML = recent.map(item => `
         <div class="table-row">
-          <strong>${item.productCode}</strong> × ${item.quantity}<br>
+          <strong>${item.productCode}</strong><br>
+          <span style="color: #2196f3; font-size: 13px;">${item.calculationInfo || `${item.quantity}個`}</span><br>
           <small>${item.date} | ${item.timestamp}</small>
         </div>
       `).join('');
@@ -754,9 +792,9 @@
       
       try {
         const csv = [
-          '\uFEFF日付,品番,数量,管理番号,読み取り時刻',
+          '\uFEFF日付,品番,ケース数,単位数量,合計数量,管理番号,読み取り時刻',
           ...scanData.map(item => 
-            `${item.date},${item.productCode},${item.quantity},${item.internalCode},${item.timestamp}`
+            `${item.date},${item.productCode},${item.caseCount || 1},${item.unitQuantity || item.quantity},${item.quantity},${item.internalCode},${item.timestamp}`
           )
         ].join('\n');
         
