@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📱 高速QRスキャナー</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic&display=swap">
+  <style>
+    body {
+      font-family: 'BIZ UDゴシック', sans-serif;
+      background: linear-gradient(to right, #1a4789, #10356f);
+      color: #fff;
+      padding: 20px;
+      margin: 0;
+    }
+    .container {
+      max-width: 480px;
+      margin: auto;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #5a84c8;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 20px;
+      text-align: center;
+      margin-bottom: 16px;
+      color: #cce4ff;
+    }
+    #reader {
+      width: 100%;
+      background: #000;
+      border-radius: 8px;
+      min-height: 240px;
+      margin-bottom: 10px;
+    }
+    .btn {
+      width: 100%;
+      padding: 12px;
+      margin: 4px 0;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .btn-primary { background: #2a72c9; color: #fff; }
+    .btn-danger { background: #d9534f; color: #fff; }
+    .btn-secondary { background: #406fa2; color: #fff; }
+    .status { margin: 10px 0; text-align: center; font-size: 13px; }
+    .summary-card {
+      margin-top: 20px;
+      padding: 10px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid #5a84c8;
+      border-radius: 8px;
+    }
+    .summary-item { display: flex; justify-content: space-between; margin: 5px 0; }
+    .input-group {
+      display: flex;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    .input-group input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .calculation-display {
+      font-size: 14px;
+      color: #b0d4ff;
+      margin-top: 6px;
+    }
+    .history-card {
+      margin-top: 16px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid #5a84c8;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 13px;
+    }
+    .history-entry {
+      border-bottom: 1px solid #3a6cc4;
+      padding: 4px 0;
+    }
+    .history-entry:last-child {
+      border-bottom: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📱 高速QRスキャナー</h1>
+    <div id="reader"></div>
+    <button id="startBtn" class="btn btn-primary">📷 スキャン開始</button>
+    <button id="stopBtn" class="btn btn-danger">⏹️ 停止</button>
+    <button id="switchBtn" class="btn btn-secondary">🔄 カメラ切替</button>
+    <div id="status" class="status">📱 スキャン開始ボタンを押してください</div>
+
+    <!-- 入力UI -->
+    <div id="entrySection">
+      <div class="input-group">
+        <input type="number" id="unitQuantity" placeholder="1箱の入り数" min="1" value="10" />
+      </div>
+      <div class="input-group">
+        <input type="number" id="caseInput" placeholder="箱数" min="0" value="0" />
+        <input type="number" id="extraInput" placeholder="端数" min="0" value="0" />
+      </div>
+      <div id="calculationResult" class="calculation-display">合計数量: 0個</div>
+    </div>
+
+    <!-- サマリ表示 -->
+    <div class="summary-card">
+      <div class="summary-item">
+        <span>📋 読み取り件数</span>
+        <span id="count">0件</span>
+      </div>
+      <div class="summary-item">
+        <span>📦 合計数量</span>
+        <span id="total">0個</span>
+      </div>
+    </div>
+
+    <!-- クイック操作 -->
+    <div style="margin-top: 12px;">
+      <button class="btn btn-secondary" onclick="exportData()">💾 CSV出力</button>
+      <button class="btn btn-secondary" onclick="clearData()">🗑️ クリア</button>
+    </div>
+
+    <!-- 履歴表示 -->
+    <div id="history" class="history-card"></div>
+  </div>
+
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script>
+    let scanner;
+    let currentCameraIndex = 0;
+    let cameras = [];
+    let scanCount = 0;
+    let totalQuantity = 0;
+    let scanHistory = JSON.parse(localStorage.getItem('scanHistory')) || [];
+
+    const reader = document.getElementById('reader');
+    const caseInput = document.getElementById('caseInput');
+    const extraInput = document.getElementById('extraInput');
+    const unitInput = document.getElementById('unitQuantity');
+    const calcDisplay = document.getElementById('calculationResult');
+    const countDisplay = document.getElementById('count');
+    const totalDisplay = document.getElementById('total');
+    const statusDisplay = document.getElementById('status');
+    const historyDisplay = document.getElementById('history');
+
+    async function startCamera() {
+      try {
+        scanner = new Html5Qrcode("reader");
+        cameras = await Html5Qrcode.getCameras();
+        if (cameras.length === 0) throw new Error("カメラが見つかりません");
+
+        await scanner.start(
+          cameras[currentCameraIndex].id,
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          onScanSuccess
+        );
+        statusDisplay.textContent = `📷 ${cameras[currentCameraIndex].label} 使用中`;
+      } catch (err) {
+        statusDisplay.textContent = `❌ カメラ起動失敗: ${err.message}`;
+      }
+    }
+
+    async function stopCamera() {
+      if (scanner) {
+        await scanner.stop();
+        statusDisplay.textContent = "⏹️ カメラを停止しました";
+      }
+    }
+
+    async function switchCamera() {
+      if (!cameras.length) return;
+      currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+      await stopCamera();
+      await startCamera();
+    }
+
+    function onScanSuccess(decodedText) {
+      try {
+        const parts = decodedText.split(',');
+        const quantity = parseInt(parts[2]) || 0;
+        unitInput.value = quantity;
+        caseInput.value = 1;
+        extraInput.value = 0;
+        updateCalculation();
+        confirmScan();
+      } catch (e) {
+        statusDisplay.textContent = `❌ 読み取り失敗: ${e.message}`;
+      }
+    }
+
+    function updateCalculation() {
+      const cases = parseInt(caseInput.value) || 0;
+      const extras = parseInt(extraInput.value) || 0;
+      const unitQty = parseInt(unitInput.value) || 0;
+      const total = (cases * unitQty) + extras;
+      calcDisplay.textContent = `合計数量: ${total}個`;
+    }
+
+    function confirmScan() {
+      const cases = parseInt(caseInput.value) || 0;
+      const extras = parseInt(extraInput.value) || 0;
+      const unitQty = parseInt(unitInput.value) || 0;
+      const total = (cases * unitQty) + extras;
+      const entry = {
+        time: new Date().toLocaleTimeString(),
+        unitQty, cases, extras, total
+      };
+      scanHistory.push(entry);
+      if (scanHistory.length > 10) scanHistory.shift();
+      localStorage.setItem('scanHistory', JSON.stringify(scanHistory));
+
+      scanCount++;
+      totalQuantity += total;
+      countDisplay.textContent = `${scanCount}件`;
+      totalDisplay.textContent = `${totalQuantity}個`;
+      statusDisplay.textContent = `✅ 登録完了 (${total}個)`;
+      updateHistory();
+    }
+
+    function exportData() {
+      if (scanHistory.length === 0) {
+        alert('データがありません');
+        return;
+      }
+      const header = '時刻,箱数,端数,入り数,合計数量\n';
+      const csv = scanHistory.map(e => `${e.time},${e.cases},${e.extras},${e.unitQty},${e.total}`).join('\n');
+      const blob = new Blob([header + csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'scan_data.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function clearData() {
+      scanCount = 0;
+      totalQuantity = 0;
+      scanHistory = [];
+      localStorage.removeItem('scanHistory');
+      countDisplay.textContent = '0件';
+      totalDisplay.textContent = '0個';
+      statusDisplay.textContent = '📱 スキャン開始ボタンを押してください';
+      updateHistory();
+    }
+
+    function updateHistory() {
+      historyDisplay.innerHTML = scanHistory.slice().reverse().map(e =>
+        `<div class="history-entry">🕒${e.time}：${e.cases}箱×${e.unitQty} + ${e.extras} = ${e.total}個</div>`
+      ).join('');
+    }
+
+    [caseInput, extraInput, unitInput].forEach(input => {
+      input.addEventListener('input', updateCalculation);
+    });
+
+    document.getElementById('startBtn').onclick = startCamera;
+    document.getElementById('stopBtn').onclick = stopCamera;
+    document.getElementById('switchBtn').onclick = switchCamera;
+
+    updateHistory();
+  </script>
+</body>
+</html>
