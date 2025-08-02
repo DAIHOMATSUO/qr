@@ -908,7 +908,7 @@
       totalEl.textContent = `${totalQuantitySum}個`; // 修正された変数名
     }
 
-    // データ表示更新（表示バグ修正）
+    // データ表示更新（エラー修正版）
     function updateDataDisplay() {
       if (scanData.length === 0) {
         dataSection.classList.add('hidden');
@@ -918,51 +918,77 @@
       dataSection.classList.remove('hidden');
       dataList.innerHTML = '';
       
-      console.log('=== 履歴表示更新 ===');
-      console.log('scanData:', scanData);
+      console.log('=== 履歴表示更新（デバッグ） ===');
+      console.log('scanData全体:', scanData);
+      console.log('scanData件数:', scanData.length);
       
       // 最新5件のみ表示
-      scanData.slice(-5).reverse().forEach((item, index) => {
-        console.log(`履歴項目${index}:`, item);
+      const recentData = scanData.slice(-5).reverse();
+      console.log('表示対象データ:', recentData);
+      
+      recentData.forEach((item, index) => {
+        console.log(`--- 項目${index} ---`);
+        console.log('データ:', item);
+        console.log('各フィールド確認:');
+        console.log('  productCode:', item.productCode);
+        console.log('  unitQuantity:', item.unitQuantity, typeof item.unitQuantity);
+        console.log('  boxQuantity:', item.boxQuantity, typeof item.boxQuantity);
+        console.log('  quantity:', item.quantity, typeof item.quantity);
+        console.log('  date:', item.date);
+        console.log('  timestamp:', item.timestamp);
         
         const row = document.createElement('div');
         row.className = 'table-row';
         
-        // 箱数情報の表示（修正版）
-        let quantityInfo;
-        if (item.unitQuantity && item.boxQuantity && item.quantity) {
-          // 新形式: 入り数×箱数=合計（正しい計算を表示）
-          const correctTotal = item.unitQuantity * item.boxQuantity;
-          quantityInfo = `${item.unitQuantity}個×${item.boxQuantity}箱=${correctTotal}個`;
-          
-          console.log(`表示計算: ${item.unitQuantity}×${item.boxQuantity}=${correctTotal}`);
-          console.log(`保存データ: quantity=${item.quantity}`);
-          
-          // データ不整合の警告
-          if (correctTotal !== item.quantity) {
-            console.warn('⚠️ 計算結果とデータの不整合:', {
-              計算結果: correctTotal,
-              保存データ: item.quantity
-            });
+        // より安全な表示ロジック
+        let quantityInfo = 'データエラー';
+        let productName = item.productCode || '品番不明';
+        let dateInfo = item.date || '日付不明';
+        let timeInfo = item.timestamp || '時刻不明';
+        
+        try {
+          // unitQuantityとboxQuantityが存在する場合（新形式）
+          if (item.unitQuantity !== undefined && item.boxQuantity !== undefined) {
+            const unit = parseInt(item.unitQuantity, 10) || 0;
+            const box = parseInt(item.boxQuantity, 10) || 0;
+            const total = unit * box;
+            
+            console.log(`  計算: ${unit} × ${box} = ${total}`);
+            
+            if (unit > 0 && box > 0) {
+              quantityInfo = `${unit}個×${box}箱=${total}個`;
+            } else {
+              quantityInfo = `${item.quantity || 0}個`;
+            }
           }
-        } else if (item.quantity) {
-          // 旧データまたはシンプル形式
-          quantityInfo = `${item.quantity}個`;
-        } else {
-          // データ不正
-          quantityInfo = `データエラー`;
-          console.error('❌ データ不正:', item);
+          // quantityのみ存在する場合（旧形式）
+          else if (item.quantity !== undefined) {
+            const qty = parseInt(item.quantity, 10) || 0;
+            quantityInfo = `${qty}個`;
+            console.log(`  旧形式: ${qty}個`);
+          }
+          // どちらも存在しない場合
+          else {
+            console.error('  ❌ 数量データなし');
+            quantityInfo = '数量不明';
+          }
+          
+        } catch (error) {
+          console.error('  ❌ 表示処理エラー:', error);
+          quantityInfo = 'エラー';
         }
         
+        console.log(`  最終表示: ${quantityInfo}`);
+        
         row.innerHTML = `
-          <strong>${item.productCode}</strong><br>
+          <strong>${productName}</strong><br>
           <small>📦 ${quantityInfo}</small><br>
-          <small>${item.date} | ${item.timestamp}</small>
+          <small>${dateInfo} | ${timeInfo}</small>
         `;
         dataList.appendChild(row);
       });
       
-      console.log('履歴表示更新完了');
+      console.log('=== 履歴表示更新完了 ===');
     }
 
     // ステータス更新
@@ -984,45 +1010,118 @@
       }
     }
 
-    // データ読み込み（互換性強化）
+    // データ読み込み（エラー処理強化）
     function loadSavedData() {
       try {
         const saved = localStorage.getItem('qr_data');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          scanData = parsed.data || [];
-          totalCount = parsed.count || 0;
-          totalQuantitySum = parsed.quantity || 0;
+        if (!saved) {
+          console.log('保存データなし');
+          return;
+        }
+        
+        console.log('=== データ読み込み開始 ===');
+        console.log('生データ:', saved);
+        
+        const parsed = JSON.parse(saved);
+        console.log('パース結果:', parsed);
+        
+        // データ配列の確認と修復
+        if (Array.isArray(parsed.data)) {
+          scanData = parsed.data;
+          console.log('データ配列:', scanData);
           
-          console.log('=== データ読み込み ===');
-          console.log('件数:', totalCount);
-          console.log('合計:', totalQuantitySum);
-          console.log('データ:', scanData);
-          
-          // データ整合性チェック
+          // 各データの整合性チェック
+          let validData = [];
           let recalculatedTotal = 0;
+          
           scanData.forEach((item, index) => {
-            if (item.quantity && !isNaN(item.quantity)) {
-              recalculatedTotal += item.quantity;
-            } else {
-              console.warn(`データ${index}の数量が不正:`, item);
+            console.log(`--- データ${index}チェック ---`);
+            console.log('項目:', item);
+            
+            // 必須フィールドのチェック
+            if (!item.productCode) {
+              console.warn(`データ${index}: 品番なし`);
+              item.productCode = `品番不明${index}`;
             }
+            
+            if (!item.date) {
+              console.warn(`データ${index}: 日付なし`);
+              item.date = '2025/01/01';
+            }
+            
+            if (!item.timestamp) {
+              console.warn(`データ${index}: 時刻なし`);
+              item.timestamp = '00:00:00';
+            }
+            
+            // 数量データの修復
+            if (item.unitQuantity && item.boxQuantity) {
+              // 新形式データ
+              const unit = parseInt(item.unitQuantity, 10) || 1;
+              const box = parseInt(item.boxQuantity, 10) || 1;
+              const calculatedQty = unit * box;
+              
+              item.unitQuantity = unit;
+              item.boxQuantity = box;
+              item.quantity = calculatedQty;
+              
+              console.log(`修復: ${unit}×${box}=${calculatedQty}`);
+              recalculatedTotal += calculatedQty;
+            } else if (item.quantity) {
+              // 旧形式データ
+              const qty = parseInt(item.quantity, 10) || 1;
+              item.quantity = qty;
+              
+              console.log(`旧形式: ${qty}個`);
+              recalculatedTotal += qty;
+            } else {
+              // データ不正の修復
+              console.warn(`データ${index}: 数量情報なし、デフォルト値設定`);
+              item.quantity = 1;
+              item.unitQuantity = 1;
+              item.boxQuantity = 1;
+              recalculatedTotal += 1;
+            }
+            
+            validData.push(item);
           });
           
-          // 合計値の整合性チェック
-          if (recalculatedTotal !== totalQuantitySum) {
-            console.warn('合計値の不整合を検出:', {
-              保存値: totalQuantitySum,
-              再計算値: recalculatedTotal
-            });
-            totalQuantitySum = recalculatedTotal; // 修正
-          }
+          scanData = validData;
+          console.log('修復後データ:', scanData);
           
-          updateSummary();
-          updateDataDisplay();
+        } else {
+          console.error('データ配列が不正');
+          scanData = [];
         }
+        
+        // カウントとトータルの設定
+        totalCount = parsed.count || scanData.length;
+        totalQuantitySum = recalculatedTotal;
+        
+        console.log('最終結果:', {
+          件数: totalCount,
+          合計: totalQuantitySum,
+          データ件数: scanData.length
+        });
+        
+        // 修復したデータを保存
+        saveData();
+        
+        updateSummary();
+        updateDataDisplay();
+        
+        console.log('=== データ読み込み完了 ===');
+        
       } catch (e) {
-        console.error('読み込みエラー:', e);
+        console.error('❌ データ読み込みエラー:', e);
+        console.log('データを初期化します');
+        
+        // エラー時は初期化
+        scanData = [];
+        totalCount = 0;
+        totalQuantitySum = 0;
+        updateSummary();
+        updateDataDisplay();
       }
     }
 
