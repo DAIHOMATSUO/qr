@@ -120,22 +120,42 @@
     }
     
     .quantity-input {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
       margin: 16px 0;
       padding: 12px;
       background: #f5f5f5;
       border-radius: 8px;
     }
     
+    .input-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 8px 0;
+      padding: 8px;
+      background: white;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+    }
+    
+    .input-label {
+      font-weight: bold;
+      color: #333;
+      font-size: 14px;
+      min-width: 80px;
+    }
+    
+    .input-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
     .quantity-btn {
-      width: 40px;
-      height: 40px;
+      width: 36px;
+      height: 36px;
       border: none;
       border-radius: 6px;
-      font-size: 20px;
+      font-size: 18px;
       font-weight: bold;
       cursor: pointer;
       display: flex;
@@ -154,15 +174,26 @@
     }
     
     .quantity-display {
-      font-size: 24px;
+      font-size: 18px;
       font-weight: bold;
       color: #333;
-      min-width: 60px;
+      min-width: 50px;
       text-align: center;
-      padding: 8px 16px;
-      background: white;
-      border: 2px solid #ddd;
-      border-radius: 6px;
+      padding: 6px 12px;
+      background: #f8f9fa;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    
+    .total-display {
+      text-align: center;
+      margin: 12px 0;
+      padding: 12px;
+      background: linear-gradient(45deg, #667eea, #764ba2);
+      color: white;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 16px;
     }
     
     .confirm-buttons {
@@ -297,12 +328,34 @@
       
       <!-- 数量調整UI -->
       <div class="quantity-input">
-        <button class="quantity-btn quantity-minus" id="decreaseBtn">−</button>
-        <div class="quantity-display" id="quantityDisplay">1</div>
-        <button class="quantity-btn quantity-plus" id="increaseBtn">＋</button>
+        <!-- 箱の入り数調整 -->
+        <div class="input-row">
+          <span class="input-label">📦 入り数</span>
+          <div class="input-controls">
+            <button class="quantity-btn quantity-minus" id="decreaseUnitBtn">−</button>
+            <div class="quantity-display" id="unitQuantityDisplay">1</div>
+            <button class="quantity-btn quantity-plus" id="increaseUnitBtn">＋</button>
+          </div>
+        </div>
+        
+        <!-- 箱数調整 -->
+        <div class="input-row">
+          <span class="input-label">📦 箱数</span>
+          <div class="input-controls">
+            <button class="quantity-btn quantity-minus" id="decreaseBoxBtn">−</button>
+            <div class="quantity-display" id="boxQuantityDisplay">1</div>
+            <button class="quantity-btn quantity-plus" id="increaseBoxBtn">＋</button>
+          </div>
+        </div>
+        
+        <!-- 合計表示 -->
+        <div class="total-display">
+          🧮 合計: <span id="totalDisplay">1</span> 個
+        </div>
       </div>
-      <div style="text-align: center; font-size: 13px; color: #666; margin-bottom: 16px;">
-        📦 数量を調整できます（同一製品をまとめて登録）
+      
+      <div style="text-align: center; font-size: 12px; color: #666; margin-bottom: 16px;">
+        💡 入り数を確認後、箱数を設定してください
       </div>
       
       <div class="confirm-buttons">
@@ -331,9 +384,13 @@
     const clearBtn = document.getElementById('clearBtn');
     const confirmBtn = document.getElementById('confirmBtn');
     const cancelBtn = document.getElementById('cancelBtn');
-    const increaseBtn = document.getElementById('increaseBtn');
-    const decreaseBtn = document.getElementById('decreaseBtn');
-    const quantityDisplay = document.getElementById('quantityDisplay');
+    const increaseUnitBtn = document.getElementById('increaseUnitBtn');
+    const decreaseUnitBtn = document.getElementById('decreaseUnitBtn');
+    const increaseBoxBtn = document.getElementById('increaseBoxBtn');
+    const decreaseBoxBtn = document.getElementById('decreaseBoxBtn');
+    const unitQuantityDisplay = document.getElementById('unitQuantityDisplay');
+    const boxQuantityDisplay = document.getElementById('boxQuantityDisplay');
+    const totalDisplay = document.getElementById('totalDisplay');
     const status = document.getElementById('status');
     const confirmDialog = document.getElementById('confirmDialog');
     const confirmText = document.getElementById('confirmText');
@@ -342,8 +399,10 @@
     const dataSection = document.getElementById('dataSection');
     const dataList = document.getElementById('dataList');
     
-    // 数量調整用変数
-    let currentQuantity = 1;
+    // 数量管理用変数
+    let unitQuantity = 1;  // 箱の入り数
+    let boxQuantity = 1;   // 箱数
+    let calculatedTotal = 1; // 合計個数（計算値）
 
     // 初期化
     document.addEventListener('DOMContentLoaded', function() {
@@ -354,8 +413,10 @@
       clearBtn.addEventListener('click', clearData);
       confirmBtn.addEventListener('click', confirmScan);
       cancelBtn.addEventListener('click', cancelScan);
-      increaseBtn.addEventListener('click', increaseQuantity);
-      decreaseBtn.addEventListener('click', decreaseQuantity);
+      increaseUnitBtn.addEventListener('click', increaseUnit);
+      decreaseUnitBtn.addEventListener('click', decreaseUnit);
+      increaseBoxBtn.addEventListener('click', increaseBox);
+      decreaseBoxBtn.addEventListener('click', decreaseBox);
       loadSavedData();
       
       // Html5Qrcodeライブラリの読み込み確認
@@ -572,9 +633,11 @@
     function showConfirmDialog() {
       if (!pendingData) return;
       
-      // 数量を初期化（QRコードの値またはデフォルト1）
-      currentQuantity = pendingData.quantity || 1;
-      updateQuantityDisplay();
+      // QRコードの数量を入り数として設定
+      unitQuantity = pendingData.quantity || 1;
+      boxQuantity = 1; // 箱数は1からスタート
+      
+      updateQuantityDisplays();
       
       confirmText.innerHTML = `
         <strong>📦 登録確認</strong><br><br>
@@ -586,29 +649,46 @@
       confirmDialog.style.display = 'block';
     }
 
-    // 数量表示更新
-    function updateQuantityDisplay() {
-      quantityDisplay.textContent = currentQuantity;
+    // 全ての数量表示を更新
+    function updateQuantityDisplays() {
+      unitQuantityDisplay.textContent = unitQuantity;
+      boxQuantityDisplay.textContent = boxQuantity;
+      calculatedTotal = unitQuantity * boxQuantity;
+      totalDisplay.textContent = calculatedTotal;
     }
 
-    // 数量増加
-    function increaseQuantity() {
-      if (currentQuantity < 999) {
-        currentQuantity++;
-        updateQuantityDisplay();
-        
-        // 振動フィードバック
+    // 入り数増加
+    function increaseUnit() {
+      if (unitQuantity < 999) {
+        unitQuantity++;
+        updateQuantityDisplays();
         if (navigator.vibrate) navigator.vibrate(50);
       }
     }
 
-    // 数量減少
-    function decreaseQuantity() {
-      if (currentQuantity > 1) {
-        currentQuantity--;
-        updateQuantityDisplay();
-        
-        // 振動フィードバック
+    // 入り数減少
+    function decreaseUnit() {
+      if (unitQuantity > 1) {
+        unitQuantity--;
+        updateQuantityDisplays();
+        if (navigator.vibrate) navigator.vibrate(50);
+      }
+    }
+
+    // 箱数増加
+    function increaseBox() {
+      if (boxQuantity < 999) {
+        boxQuantity++;
+        updateQuantityDisplays();
+        if (navigator.vibrate) navigator.vibrate(50);
+      }
+    }
+
+    // 箱数減少
+    function decreaseBox() {
+      if (boxQuantity > 1) {
+        boxQuantity--;
+        updateQuantityDisplays();
         if (navigator.vibrate) navigator.vibrate(50);
       }
     }
@@ -617,16 +697,18 @@
     function confirmScan() {
       if (!pendingData) return;
       
-      // 調整された数量を使用
+      // 最終的な登録データ
       const finalData = {
         ...pendingData,
-        quantity: currentQuantity,
-        originalQuantity: pendingData.quantity // 元の数量も保持
+        unitQuantity: unitQuantity,      // 入り数
+        boxQuantity: boxQuantity,        // 箱数
+        quantity: totalQuantity,         // 合計個数
+        originalQuantity: pendingData.quantity // QRコードの元数量
       };
       
       scanData.push(finalData);
       totalCount++;
-      totalQuantity += currentQuantity;
+      totalQuantity += totalQuantity;
       
       updateSummary();
       updateDataDisplay();
@@ -634,18 +716,25 @@
       
       confirmDialog.style.display = 'none';
       pendingData = null;
-      currentQuantity = 1;
+      resetQuantities();
       
-      updateStatus(`✅ ${finalData.productCode} × ${currentQuantity} 登録完了 (${totalCount}件)`, 'success');
-      setTimeout(() => updateStatus('📷 スキャン待機中', 'success'), 2000);
+      updateStatus(`✅ ${finalData.productCode} ${unitQuantity}個×${boxQuantity}箱=${totalQuantity}個 登録完了`, 'success');
+      setTimeout(() => updateStatus('📷 スキャン待機中', 'success'), 3000);
     }
 
     // スキャンキャンセル
     function cancelScan() {
       confirmDialog.style.display = 'none';
       pendingData = null;
-      currentQuantity = 1;
+      resetQuantities();
       updateStatus('📷 スキャン待機中', 'success');
+    }
+
+    // 数量リセット
+    function resetQuantities() {
+      unitQuantity = 1;
+      boxQuantity = 1;
+      totalQuantity = 1;
     }
 
     // サマリー更新
@@ -669,13 +758,18 @@
         const row = document.createElement('div');
         row.className = 'table-row';
         
-        // 数量調整があった場合の表示
-        const quantityInfo = item.originalQuantity && item.originalQuantity !== item.quantity 
-          ? `${item.originalQuantity} → ${item.quantity}` 
-          : item.quantity;
+        // 箱数情報の表示
+        let quantityInfo;
+        if (item.unitQuantity && item.boxQuantity) {
+          quantityInfo = `${item.unitQuantity}個×${item.boxQuantity}箱=${item.quantity}個`;
+        } else {
+          // 旧データとの互換性
+          quantityInfo = `${item.quantity}個`;
+        }
         
         row.innerHTML = `
-          <strong>${item.productCode}</strong> × ${quantityInfo}<br>
+          <strong>${item.productCode}</strong><br>
+          <small>📦 ${quantityInfo}</small><br>
           <small>${item.date} | ${item.timestamp}</small>
         `;
         dataList.appendChild(row);
@@ -726,10 +820,12 @@
       }
       
       try {
-        let csv = '\uFEFF日付,品番,数量,管理番号,時刻,元数量\n';
+        let csv = '\uFEFF日付,品番,入り数,箱数,合計個数,管理番号,時刻\n';
         scanData.forEach(item => {
-          const originalQty = item.originalQuantity || item.quantity;
-          csv += `${item.date},${item.productCode},${item.quantity},${item.internalCode},${item.timestamp},${originalQty}\n`;
+          const unitQty = item.unitQuantity || item.quantity;
+          const boxQty = item.boxQuantity || 1;
+          const totalQty = item.quantity;
+          csv += `${item.date},${item.productCode},${unitQty},${boxQty},${totalQty},${item.internalCode},${item.timestamp}\n`;
         });
         
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
