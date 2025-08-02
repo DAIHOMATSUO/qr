@@ -168,9 +168,16 @@
       color: white;
     }
     
-    .quantity-plus {
-      background: #51cf66;
-      color: white;
+    .quantity-btn:active {
+      transform: translateY(1px);
+    }
+    
+    .quantity-minus:active {
+      background: #e55555;
+    }
+    
+    .quantity-plus:active {
+      background: #45b555;
     }
     
     .quantity-display {
@@ -406,6 +413,9 @@
 
     // 初期化
     document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM読み込み完了');
+      
+      // イベントリスナー設定
       startBtn.addEventListener('click', startCamera);
       stopBtn.addEventListener('click', stopCamera);
       switchBtn.addEventListener('click', switchCamera);
@@ -413,10 +423,27 @@
       clearBtn.addEventListener('click', clearData);
       confirmBtn.addEventListener('click', confirmScan);
       cancelBtn.addEventListener('click', cancelScan);
-      increaseUnitBtn.addEventListener('click', increaseUnit);
-      decreaseUnitBtn.addEventListener('click', decreaseUnit);
-      increaseBoxBtn.addEventListener('click', increaseBox);
-      decreaseBoxBtn.addEventListener('click', decreaseBox);
+      
+      // 数量調整ボタンのイベントリスナー
+      increaseUnitBtn.addEventListener('click', function() {
+        console.log('入り数＋ボタンがクリックされました');
+        increaseUnit();
+      });
+      decreaseUnitBtn.addEventListener('click', function() {
+        console.log('入り数−ボタンがクリックされました');
+        decreaseUnit();
+      });
+      increaseBoxBtn.addEventListener('click', function() {
+        console.log('箱数＋ボタンがクリックされました');
+        increaseBox();
+      });
+      decreaseBoxBtn.addEventListener('click', function() {
+        console.log('箱数−ボタンがクリックされました');
+        decreaseBox();
+      });
+      
+      console.log('全イベントリスナー設定完了');
+      
       loadSavedData();
       
       // Html5Qrcodeライブラリの読み込み確認
@@ -633,9 +660,14 @@
     function showConfirmDialog() {
       if (!pendingData) return;
       
+      console.log('確認ダイアログ表示開始');
+      console.log('pendingData:', pendingData);
+      
       // QRコードの数量を入り数として設定
       unitQuantity = pendingData.quantity || 1;
       boxQuantity = 1; // 箱数は1からスタート
+      
+      console.log('初期値設定:', { unitQuantity, boxQuantity });
       
       updateQuantityDisplays();
       
@@ -647,14 +679,24 @@
       `;
       
       confirmDialog.style.display = 'block';
+      console.log('確認ダイアログ表示完了');
     }
 
     // 全ての数量表示を更新
     function updateQuantityDisplays() {
+      console.log('表示更新:', { unitQuantity, boxQuantity });
+      
       unitQuantityDisplay.textContent = unitQuantity;
       boxQuantityDisplay.textContent = boxQuantity;
-      calculatedTotal = unitQuantity * boxQuantity;
+      const calculatedTotal = unitQuantity * boxQuantity;
       totalDisplay.textContent = calculatedTotal;
+      
+      console.log('計算結果:', calculatedTotal);
+    }
+
+    // 計算された合計を取得
+    function getCalculatedTotal() {
+      return unitQuantity * boxQuantity;
     }
 
     // 入り数増加
@@ -663,6 +705,7 @@
         unitQuantity++;
         updateQuantityDisplays();
         if (navigator.vibrate) navigator.vibrate(50);
+        console.log('入り数増加:', unitQuantity);
       }
     }
 
@@ -672,6 +715,7 @@
         unitQuantity--;
         updateQuantityDisplays();
         if (navigator.vibrate) navigator.vibrate(50);
+        console.log('入り数減少:', unitQuantity);
       }
     }
 
@@ -681,15 +725,17 @@
         boxQuantity++;
         updateQuantityDisplays();
         if (navigator.vibrate) navigator.vibrate(50);
+        console.log('箱数増加:', boxQuantity);
       }
     }
 
-    // 箱数減少
+    // 箱数減少  
     function decreaseBox() {
       if (boxQuantity > 1) {
         boxQuantity--;
         updateQuantityDisplays();
         if (navigator.vibrate) navigator.vibrate(50);
+        console.log('箱数減少:', boxQuantity);
       }
     }
 
@@ -740,7 +786,7 @@
     // サマリー更新
     function updateSummary() {
       countEl.textContent = `${totalCount}件`;
-      totalEl.textContent = `${totalQuantity}個`;
+      totalEl.textContent = `${totalQuantitySum}個`; // 修正された変数名
     }
 
     // データ表示更新
@@ -788,7 +834,7 @@
         localStorage.setItem('qr_data', JSON.stringify({
           data: scanData,
           count: totalCount,
-          quantity: totalQuantity
+          quantity: totalQuantitySum // 修正された変数名
         }));
       } catch (e) {
         console.error('保存エラー:', e);
@@ -803,7 +849,7 @@
           const parsed = JSON.parse(saved);
           scanData = parsed.data || [];
           totalCount = parsed.count || 0;
-          totalQuantity = parsed.quantity || 0;
+          totalQuantitySum = parsed.quantity || 0; // 修正された変数名
           updateSummary();
           updateDataDisplay();
         }
@@ -850,7 +896,7 @@
       if (confirm(`${totalCount}件のデータを削除しますか？`)) {
         scanData = [];
         totalCount = 0;
-        totalQuantity = 0;
+        totalQuantitySum = 0; // 修正された変数名
         updateSummary();
         updateDataDisplay();
         saveData();
