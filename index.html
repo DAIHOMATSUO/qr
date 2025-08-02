@@ -289,7 +289,7 @@
   </style>
 </head>
 <body>
-  <h1>📱 QR在庫スキャン（浜松Ver）</h1>
+  <h1>📱 QR在庫スキャン</h1>
   
   <!-- カメラセクション -->
   <div class="camera-box">
@@ -717,18 +717,23 @@
         .map(item => item.trim());
     }
 
-    // 確認ダイアログ表示
+    // 確認ダイアログ表示（初期化強化）
     function showConfirmDialog() {
       if (!pendingData) return;
       
-      console.log('確認ダイアログ表示開始');
+      console.log('=== 確認ダイアログ表示開始 ===');
       console.log('pendingData:', pendingData);
       
-      // QRコードの数量を入り数として設定
-      unitQuantity = pendingData.quantity || 1;
-      boxQuantity = 1; // 箱数は1からスタート
+      // QRコードの数量を入り数として設定（型安全）
+      const qrQuantity = parseInt(pendingData.quantity, 10) || 1;
+      unitQuantity = qrQuantity;
+      boxQuantity = 1; // 箱数は必ず1からスタート
       
-      console.log('初期値設定:', { unitQuantity, boxQuantity });
+      console.log('初期値設定完了:', { 
+        qrQuantity, 
+        unitQuantity, 
+        boxQuantity 
+      });
       
       updateQuantityDisplays();
       
@@ -740,86 +745,116 @@
       `;
       
       confirmDialog.style.display = 'block';
-      console.log('確認ダイアログ表示完了');
+      console.log('=== 確認ダイアログ表示完了 ===');
     }
 
-    // 全ての数量表示を更新
+    // 全ての数量表示を更新（シンプル化）
     function updateQuantityDisplays() {
-      console.log('表示更新:', { unitQuantity, boxQuantity });
+      console.log('=== updateQuantityDisplays開始 ===');
+      console.log('更新前の値:', { unitQuantity, boxQuantity });
+      console.log('値の型:', { 
+        unitType: typeof unitQuantity, 
+        boxType: typeof boxQuantity 
+      });
       
+      // DOM要素に表示
       if (unitQuantityDisplay) {
         unitQuantityDisplay.textContent = unitQuantity;
-      } else {
-        console.error('❌ unitQuantityDisplay が見つかりません');
+        console.log('入り数表示更新:', unitQuantity);
       }
       
       if (boxQuantityDisplay) {
         boxQuantityDisplay.textContent = boxQuantity;
-      } else {
-        console.error('❌ boxQuantityDisplay が見つかりません');
+        console.log('箱数表示更新:', boxQuantity);
       }
       
-      const calculatedTotal = unitQuantity * boxQuantity;
+      // 合計計算と表示
+      const total = parseInt(unitQuantity, 10) * parseInt(boxQuantity, 10);
+      console.log('合計計算:', `${unitQuantity} × ${boxQuantity} = ${total}`);
       
       if (totalDisplay) {
-        totalDisplay.textContent = calculatedTotal;
-      } else {
-        console.error('❌ totalDisplay が見つかりません');
+        totalDisplay.textContent = total;
+        console.log('合計表示更新:', total);
       }
       
-      console.log('計算結果:', calculatedTotal);
+      console.log('=== updateQuantityDisplays完了 ===');
     }
 
-    // 計算された合計を取得（検証付き）
+    // 計算された合計を取得（安全版）
     function getCalculatedTotal() {
-      const result = unitQuantity * boxQuantity;
-      console.log('計算実行:', `${unitQuantity} × ${boxQuantity} = ${result}`);
+      console.log('=== getCalculatedTotal開始 ===');
+      console.log('計算前の値:', { unitQuantity, boxQuantity });
+      console.log('値の型:', { 
+        unitQuantityType: typeof unitQuantity, 
+        boxQuantityType: typeof boxQuantity 
+      });
       
-      if (isNaN(result) || result <= 0) {
-        console.error('計算エラー:', { unitQuantity, boxQuantity, result });
-        return 1; // フォールバック値
+      // 確実に数値型に変換
+      const safeUnit = parseInt(unitQuantity, 10);
+      const safeBox = parseInt(boxQuantity, 10);
+      
+      console.log('変換後:', { safeUnit, safeBox });
+      
+      // NaNチェック
+      if (isNaN(safeUnit) || isNaN(safeBox)) {
+        console.error('❌ NaN検出:', { safeUnit, safeBox });
+        return 1; // 緊急フォールバック
       }
+      
+      // ゼロまたは負数チェック
+      if (safeUnit <= 0 || safeBox <= 0) {
+        console.error('❌ 不正な値:', { safeUnit, safeBox });
+        return 1; // 緊急フォールバック
+      }
+      
+      const result = safeUnit * safeBox;
+      console.log('最終計算:', `${safeUnit} × ${safeBox} = ${result}`);
+      console.log('=== getCalculatedTotal完了 ===');
       
       return result;
     }
 
-    // 入り数増加
+    // 入り数増加（シンプル版）
     function increaseUnit() {
+      console.log('入り数+:', unitQuantity, '->', unitQuantity + 1);
+      
       if (unitQuantity < 999) {
         unitQuantity++;
         updateQuantityDisplays();
         if (navigator.vibrate) navigator.vibrate(50);
-        console.log('入り数増加:', unitQuantity);
       }
     }
 
-    // 入り数減少
+    // 入り数減少（シンプル版）
     function decreaseUnit() {
+      console.log('入り数-:', unitQuantity, '->', unitQuantity - 1);
+      
       if (unitQuantity > 1) {
         unitQuantity--;
         updateQuantityDisplays();
         if (navigator.vibrate) navigator.vibrate(50);
-        console.log('入り数減少:', unitQuantity);
       }
     }
 
-    // 箱数増加
+    // 箱数増加（シンプル版）
     function increaseBox() {
+      console.log('箱数+:', boxQuantity, '->', boxQuantity + 1);
+      
       if (boxQuantity < 999) {
         boxQuantity++;
         updateQuantityDisplays();
         if (navigator.vibrate) navigator.vibrate(50);
-        console.log('箱数増加:', boxQuantity);
       }
     }
 
-    // 箱数減少  
+    // 箱数減少（シンプル版）
     function decreaseBox() {
+      console.log('箱数-:', boxQuantity, '->', boxQuantity - 1);
+      
       if (boxQuantity > 1) {
         boxQuantity--;
         updateQuantityDisplays();
         if (navigator.vibrate) navigator.vibrate(50);
-        console.log('箱数減少:', boxQuantity);
       }
     }
 
