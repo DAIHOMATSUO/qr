@@ -409,11 +409,35 @@
     // 数量管理用変数
     let unitQuantity = 1;  // 箱の入り数
     let boxQuantity = 1;   // 箱数
+
+    // 初期化時にDOM要素の存在確認
+    function checkDOMElements() {
+      const elements = {
+        'increaseUnitBtn': increaseUnitBtn,
+        'decreaseUnitBtn': decreaseUnitBtn,
+        'increaseBoxBtn': increaseBoxBtn,
+        'decreaseBoxBtn': decreaseBoxBtn,
+        'unitQuantityDisplay': unitQuantityDisplay,
+        'boxQuantityDisplay': boxQuantityDisplay,
+        'totalDisplay': totalDisplay
+      };
+      
+      for (const [name, element] of Object.entries(elements)) {
+        if (!element) {
+          console.error(`❌ DOM要素が見つかりません: ${name}`);
+        } else {
+          console.log(`✅ DOM要素確認: ${name}`);
+        }
+      }
+    }
     let calculatedTotal = 1; // 合計個数（計算値）
 
     // 初期化
     document.addEventListener('DOMContentLoaded', function() {
       console.log('DOM読み込み完了');
+      
+      // DOM要素の存在確認
+      checkDOMElements();
       
       // イベントリスナー設定
       startBtn.addEventListener('click', startCamera);
@@ -424,23 +448,31 @@
       confirmBtn.addEventListener('click', confirmScan);
       cancelBtn.addEventListener('click', cancelScan);
       
-      // 数量調整ボタンのイベントリスナー
-      increaseUnitBtn.addEventListener('click', function() {
-        console.log('入り数＋ボタンがクリックされました');
-        increaseUnit();
-      });
-      decreaseUnitBtn.addEventListener('click', function() {
-        console.log('入り数−ボタンがクリックされました');
-        decreaseUnit();
-      });
-      increaseBoxBtn.addEventListener('click', function() {
-        console.log('箱数＋ボタンがクリックされました');
-        increaseBox();
-      });
-      decreaseBoxBtn.addEventListener('click', function() {
-        console.log('箱数−ボタンがクリックされました');
-        decreaseBox();
-      });
+      // 数量調整ボタンのイベントリスナー（存在確認付き）
+      if (increaseUnitBtn) {
+        increaseUnitBtn.addEventListener('click', function() {
+          console.log('入り数＋ボタンがクリックされました');
+          increaseUnit();
+        });
+      }
+      if (decreaseUnitBtn) {
+        decreaseUnitBtn.addEventListener('click', function() {
+          console.log('入り数−ボタンがクリックされました');
+          decreaseUnit();
+        });
+      }
+      if (increaseBoxBtn) {
+        increaseBoxBtn.addEventListener('click', function() {
+          console.log('箱数＋ボタンがクリックされました');
+          increaseBox();
+        });
+      }
+      if (decreaseBoxBtn) {
+        decreaseBoxBtn.addEventListener('click', function() {
+          console.log('箱数−ボタンがクリックされました');
+          decreaseBox();
+        });
+      }
       
       console.log('全イベントリスナー設定完了');
       
@@ -457,6 +489,35 @@
         return;
       }
       updateStatus('📱 準備完了', 'info');
+      
+      // DOM診断を実行
+      setTimeout(diagnoseDOMElements, 1000);
+    }
+
+    // DOM要素診断（デバッグ用）
+    function diagnoseDOMElements() {
+      console.log('=== DOM要素診断 ===');
+      
+      const testElements = [
+        'increaseUnitBtn', 'decreaseUnitBtn', 
+        'increaseBoxBtn', 'decreaseBoxBtn',
+        'unitQuantityDisplay', 'boxQuantityDisplay', 'totalDisplay'
+      ];
+      
+      testElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+          console.log(`✅ ${id}: 存在`);
+        } else {
+          console.error(`❌ ${id}: 見つかりません`);
+        }
+      });
+      
+      // 確認ダイアログの中身もチェック
+      const confirmDialog = document.getElementById('confirmDialog');
+      if (confirmDialog) {
+        console.log('確認ダイアログの中身:', confirmDialog.innerHTML.substring(0, 200) + '...');
+      }
     }
 
     // カメラ起動（エラーハンドリング強化）
@@ -686,10 +747,25 @@
     function updateQuantityDisplays() {
       console.log('表示更新:', { unitQuantity, boxQuantity });
       
-      unitQuantityDisplay.textContent = unitQuantity;
-      boxQuantityDisplay.textContent = boxQuantity;
+      if (unitQuantityDisplay) {
+        unitQuantityDisplay.textContent = unitQuantity;
+      } else {
+        console.error('❌ unitQuantityDisplay が見つかりません');
+      }
+      
+      if (boxQuantityDisplay) {
+        boxQuantityDisplay.textContent = boxQuantity;
+      } else {
+        console.error('❌ boxQuantityDisplay が見つかりません');
+      }
+      
       const calculatedTotal = unitQuantity * boxQuantity;
-      totalDisplay.textContent = calculatedTotal;
+      
+      if (totalDisplay) {
+        totalDisplay.textContent = calculatedTotal;
+      } else {
+        console.error('❌ totalDisplay が見つかりません');
+      }
       
       console.log('計算結果:', calculatedTotal);
     }
