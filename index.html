@@ -1125,7 +1125,7 @@
       }
     }
 
-    // データエクスポート
+    // データエクスポート（完全版）
     function exportData() {
       if (scanData.length === 0) {
         updateStatus('❌ データなし', 'error');
@@ -1133,14 +1133,34 @@
       }
       
       try {
-        let csv = '\uFEFF日付,品番,入り数,箱数,合計個数,管理番号,時刻\n';
-        scanData.forEach(item => {
-          const unitQty = item.unitQuantity || item.quantity;
+        console.log('=== CSVエクスポート開始 ===');
+        console.log('エクスポート対象データ:', scanData);
+        
+        // CSVヘッダー
+        let csv = '\uFEFF日付,品番,入り数,箱数,合計個数,管理番号,時刻,QR元数量\n';
+        
+        scanData.forEach((item, index) => {
+          console.log(`CSV行${index}:`, item);
+          
+          // 各フィールドの安全な取得
+          const date = (item.date || '').toString().replace(/,/g, '');
+          const productCode = (item.productCode || '').toString().replace(/,/g, '');
+          const unitQty = item.unitQuantity || item.quantity || 1;
           const boxQty = item.boxQuantity || 1;
-          const totalQty = item.quantity;
-          csv += `${item.date},${item.productCode},${unitQty},${boxQty},${totalQty},${item.internalCode},${item.timestamp}\n`;
+          const totalQty = item.quantity || (unitQty * boxQty);
+          const internalCode = (item.internalCode || '').toString().replace(/,/g, '');
+          const timestamp = (item.timestamp || '').toString().replace(/,/g, '');
+          const originalQty = item.originalQuantity || item.quantity || '';
+          
+          const csvRow = `${date},${productCode},${unitQty},${boxQty},${totalQty},${internalCode},${timestamp},${originalQty}`;
+          console.log(`CSV行データ: ${csvRow}`);
+          
+          csv += csvRow + '\n';
         });
         
+        console.log('完成CSVデータ:', csv);
+        
+        // BOM付きUTF-8でCSV出力
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -1149,9 +1169,12 @@
         a.click();
         
         setTimeout(() => URL.revokeObjectURL(url), 100);
-        updateStatus('💾 エクスポート完了', 'success');
+        updateStatus(`💾 ${scanData.length}件のデータをエクスポートしました`, 'success');
+        
+        console.log('=== CSVエクスポート完了 ===');
         
       } catch (error) {
+        console.error('❌ エクスポートエラー:', error);
         updateStatus('❌ エクスポート失敗', 'error');
       }
     }
