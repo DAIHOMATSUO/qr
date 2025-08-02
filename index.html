@@ -289,7 +289,7 @@
   </style>
 </head>
 <body>
-  <h1>📱 QR在庫スキャン</h1>
+  <h1>📱 QR在庫スキャン（浜松Ver）</h1>
   
   <!-- カメラセクション -->
   <div class="camera-box">
@@ -770,9 +770,17 @@
       console.log('計算結果:', calculatedTotal);
     }
 
-    // 計算された合計を取得
+    // 計算された合計を取得（検証付き）
     function getCalculatedTotal() {
-      return unitQuantity * boxQuantity;
+      const result = unitQuantity * boxQuantity;
+      console.log('計算実行:', `${unitQuantity} × ${boxQuantity} = ${result}`);
+      
+      if (isNaN(result) || result <= 0) {
+        console.error('計算エラー:', { unitQuantity, boxQuantity, result });
+        return 1; // フォールバック値
+      }
+      
+      return result;
     }
 
     // 入り数増加
@@ -865,7 +873,7 @@
       totalEl.textContent = `${totalQuantitySum}個`; // 修正された変数名
     }
 
-    // データ表示更新
+    // データ表示更新（表示ロジック修正）
     function updateDataDisplay() {
       if (scanData.length === 0) {
         dataSection.classList.add('hidden');
@@ -875,18 +883,29 @@
       dataSection.classList.remove('hidden');
       dataList.innerHTML = '';
       
+      console.log('=== 表示更新 ===');
+      console.log('scanData:', scanData);
+      
       // 最新5件のみ表示
-      scanData.slice(-5).reverse().forEach((item) => {
+      scanData.slice(-5).reverse().forEach((item, index) => {
+        console.log(`表示項目${index}:`, item);
+        
         const row = document.createElement('div');
         row.className = 'table-row';
         
-        // 箱数情報の表示
+        // 箱数情報の表示（詳細ログ付き）
         let quantityInfo;
-        if (item.unitQuantity && item.boxQuantity) {
+        if (item.unitQuantity && item.boxQuantity && item.quantity) {
+          // 新形式: 入り数×箱数=合計
           quantityInfo = `${item.unitQuantity}個×${item.boxQuantity}箱=${item.quantity}個`;
-        } else {
-          // 旧データとの互換性
+          console.log(`計算確認: ${item.unitQuantity}×${item.boxQuantity}=${item.unitQuantity * item.boxQuantity}, 保存値:${item.quantity}`);
+        } else if (item.quantity) {
+          // 旧データまたはシンプル形式
           quantityInfo = `${item.quantity}個`;
+        } else {
+          // データ不正
+          quantityInfo = `データエラー`;
+          console.error('データ不正:', item);
         }
         
         row.innerHTML = `
@@ -917,7 +936,7 @@
       }
     }
 
-    // データ読み込み
+    // データ読み込み（互換性強化）
     function loadSavedData() {
       try {
         const saved = localStorage.getItem('qr_data');
@@ -925,7 +944,32 @@
           const parsed = JSON.parse(saved);
           scanData = parsed.data || [];
           totalCount = parsed.count || 0;
-          totalQuantitySum = parsed.quantity || 0; // 修正された変数名
+          totalQuantitySum = parsed.quantity || 0;
+          
+          console.log('=== データ読み込み ===');
+          console.log('件数:', totalCount);
+          console.log('合計:', totalQuantitySum);
+          console.log('データ:', scanData);
+          
+          // データ整合性チェック
+          let recalculatedTotal = 0;
+          scanData.forEach((item, index) => {
+            if (item.quantity && !isNaN(item.quantity)) {
+              recalculatedTotal += item.quantity;
+            } else {
+              console.warn(`データ${index}の数量が不正:`, item);
+            }
+          });
+          
+          // 合計値の整合性チェック
+          if (recalculatedTotal !== totalQuantitySum) {
+            console.warn('合計値の不整合を検出:', {
+              保存値: totalQuantitySum,
+              再計算値: recalculatedTotal
+            });
+            totalQuantitySum = recalculatedTotal; // 修正
+          }
+          
           updateSummary();
           updateDataDisplay();
         }
