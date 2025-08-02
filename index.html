@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>📱 QR在庫スキャン</title>
+  <title>📱 QR在庫スキャン（浜松Ver）</title>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
     * {
@@ -289,7 +289,7 @@
   </style>
 </head>
 <body>
-  <h1>📱 QR在庫スキャン</h1>
+  <h1>📱 QR在庫スキャン（浜松Ver）</h1>
   
   <!-- カメラセクション -->
   <div class="camera-box">
@@ -908,7 +908,7 @@
       totalEl.textContent = `${totalQuantitySum}個`; // 修正された変数名
     }
 
-    // データ表示更新（表示ロジック修正）
+    // データ表示更新（表示バグ修正）
     function updateDataDisplay() {
       if (scanData.length === 0) {
         dataSection.classList.add('hidden');
@@ -918,29 +918,40 @@
       dataSection.classList.remove('hidden');
       dataList.innerHTML = '';
       
-      console.log('=== 表示更新 ===');
+      console.log('=== 履歴表示更新 ===');
       console.log('scanData:', scanData);
       
       // 最新5件のみ表示
       scanData.slice(-5).reverse().forEach((item, index) => {
-        console.log(`表示項目${index}:`, item);
+        console.log(`履歴項目${index}:`, item);
         
         const row = document.createElement('div');
         row.className = 'table-row';
         
-        // 箱数情報の表示（詳細ログ付き）
+        // 箱数情報の表示（修正版）
         let quantityInfo;
         if (item.unitQuantity && item.boxQuantity && item.quantity) {
-          // 新形式: 入り数×箱数=合計
-          quantityInfo = `${item.unitQuantity}個×${item.boxQuantity}箱=${item.quantity}個`;
-          console.log(`計算確認: ${item.unitQuantity}×${item.boxQuantity}=${item.unitQuantity * item.boxQuantity}, 保存値:${item.quantity}`);
+          // 新形式: 入り数×箱数=合計（正しい計算を表示）
+          const correctTotal = item.unitQuantity * item.boxQuantity;
+          quantityInfo = `${item.unitQuantity}個×${item.boxQuantity}箱=${correctTotal}個`;
+          
+          console.log(`表示計算: ${item.unitQuantity}×${item.boxQuantity}=${correctTotal}`);
+          console.log(`保存データ: quantity=${item.quantity}`);
+          
+          // データ不整合の警告
+          if (correctTotal !== item.quantity) {
+            console.warn('⚠️ 計算結果とデータの不整合:', {
+              計算結果: correctTotal,
+              保存データ: item.quantity
+            });
+          }
         } else if (item.quantity) {
           // 旧データまたはシンプル形式
           quantityInfo = `${item.quantity}個`;
         } else {
           // データ不正
           quantityInfo = `データエラー`;
-          console.error('データ不正:', item);
+          console.error('❌ データ不正:', item);
         }
         
         row.innerHTML = `
@@ -950,6 +961,8 @@
         `;
         dataList.appendChild(row);
       });
+      
+      console.log('履歴表示更新完了');
     }
 
     // ステータス更新
@@ -1033,7 +1046,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `scan_${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = `scan_hamamatsu_${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         
         setTimeout(() => URL.revokeObjectURL(url), 100);
