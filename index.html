@@ -951,19 +951,22 @@
       }
     }
 
-    // スキャン確定（問題3修正：並び順保証）
+    // スキャン確定（変数参照エラー完全修正）
     function confirmScan() {
       if (!pendingData) return;
       
-      const finalQuantity = unitQuantity * boxQuantity;
+      // メッセージ表示用に現在の値を保存（リセット前に確保）
+      const currentUnitQuantity = unitQuantity;
+      const currentBoxQuantity = boxQuantity;
+      const finalQuantity = currentUnitQuantity * currentBoxQuantity;
       
       const finalData = {
         ...pendingData,
-        unitQuantity: unitQuantity,
-        boxQuantity: boxQuantity,
+        unitQuantity: currentUnitQuantity,
+        boxQuantity: currentBoxQuantity,
         quantity: finalQuantity,
         finalTimestamp: new Date().toLocaleTimeString(),
-        registrationOrder: Date.now() // 登録順序を保証
+        registrationOrder: Date.now()
       };
       
       scanData.push(finalData);
@@ -983,7 +986,8 @@
       pendingData = null;
       resetQuantities();
       
-      updateStatus(`✅ ${finalData.productCode} ${unitQuantity}個×${boxQuantity}箱=${finalQuantity}個 登録完了`, 'success');
+      // 保存した値でメッセージ表示（絶対に正しい値）
+      updateStatus(`✅ ${finalData.productCode} ${currentUnitQuantity}個×${currentBoxQuantity}箱=${finalQuantity}個登録`, 'success');
       setTimeout(() => updateStatus('📷 スキャン待機中', 'success'), 3000);
     }
 
