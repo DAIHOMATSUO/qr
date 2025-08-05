@@ -685,14 +685,53 @@
         disableFlip: false
       };
 
-      await scanner.start(
-        selectedCamera.id,
-        config,
-        onScanSuccess,
-        onScanFailure
-      );
+      // カメラ起動を試行（複数回試行で確実に）
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          console.log(`カメラ起動試行 ${retryCount + 1}/${maxRetries}`);
+          
+          await scanner.start(
+            selectedCamera.id,
+            config,
+            onScanSuccess,
+            onScanFailure
+          );
+          
+          // 起動成功
+          console.log('カメラ起動成功');
+          break;
+          
+        } catch (startError) {
+          retryCount++;
+          console.warn(`起動失敗 ${retryCount}/${maxRetries}:`, startError);
+          
+          if (retryCount < maxRetries) {
+            // リトライ前に少し待機
+            updateCameraStatus(`起動失敗 - 再試行中... (${retryCount}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // スキャナーを再作成
+            if (scanner) {
+              try {
+                await scanner.clear();
+              } catch (e) {
+                console.warn('クリア失敗:', e);
+              }
+            }
+            scanner = new Html5Qrcode("reader");
+          } else {
+            // 最大試行回数に達した
+            throw new Error(`カメラ起動に${maxRetries}回失敗しました: ${startError.message}`);
+          }
+        }
+      }
 
-      // 起動完了後の状態設定
+      // 起動完了後の状態設定（少し待ってから確実に設定）
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       isScanning = true;
       isSwitching = false; // 確実にフラグをリセット
       
@@ -709,7 +748,7 @@
       updateCameraStatus(`使用中: ${selectedCamera.label || 'カメラ' + (currentCameraIndex + 1)}`);
       updateStatus('📷 スキャン待機中', 'success');
       
-      console.log('カメラ起動完了');
+      console.log('カメラ起動完了 - 状態設定完了');
     }
 
     // カメラ状態リセット
@@ -754,37 +793,57 @@
       try {
         // 切り替え開始
         isSwitching = true;
+        isScanning = false; // 重要：スキャン状態を一時的にfalseに
         switchBtn.disabled = true;
         switchBtn.textContent = '🔄 切替中...';
         
         // UIに切り替え中の表示
         document.querySelector('.camera-box').classList.add('switching');
         updateStatus('🔄 カメラ切り替え中...', 'info');
-        updateCameraStatus('切り替え処理中...');
+        updateCameraStatus('カメラ停止中...');
         
         console.log('カメラ切り替え開始');
         
-        // 現在のカメラを完全に停止
+        // 現在のカメラを完全に停止（強制的に）
         if (scanner) {
           console.log('既存カメラ停止中');
-          await scanner.stop();
-          scanner.clear();
+          try {
+            // 複数回stopを試行して確実に停止
+            await scanner.stop();
+            await scanner.clear();
+            console.log('カメラ停止完了');
+          } catch (stopError) {
+            console.warn('停止エラー（継続）:', stopError);
+          }
           scanner = null;
         }
+        
+        // DOM要素をクリア（重要：完全なリセット）
+        const readerElement = document.getElementById('reader');
+        if (readerElement) {
+          readerElement.innerHTML = '';
+        }
+        
+        // より長い待機時間で確実にリソースを解放
+        updateCameraStatus('リソース解放中...');
+        await new Promise(resolve => setTimeout(resolve, 800));
         
         // 次のカメラインデックスを計算
         currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
         const nextCamera = availableCameras[currentCameraIndex];
         
         console.log('次のカメラ:', currentCameraIndex, nextCamera.label);
-        
-        // 少し待ってから新しいカメラを起動
-        await new Promise(resolve => setTimeout(resolve, 300));
+        updateCameraStatus(`新カメラ準備中: ${nextCamera.label || 'カメラ' + (currentCameraIndex + 1)}`);
         
         // 新しいスキャナーを作成
         scanner = new Html5Qrcode("reader");
+        console.log('新しいスキャナー作成完了');
+        
+        // さらに待機してから起動
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         // 新しいカメラで起動
+        updateCameraStatus('新カメラ起動中...');
         await startCameraWithConfig(nextCamera);
         
         console.log('カメラ切り替え完了');
@@ -795,8 +854,22 @@
         updateStatus('❌ 切り替え失敗', 'error');
         updateCameraStatus('切り替え失敗 - 再起動してください');
         
-        // エラー時は完全停止
-        await stopCamera();
+        // エラー時は完全停止してリセット
+        try {
+          if (scanner) {
+            await scanner.stop();
+            scanner.clear();
+            scanner = null;
+          }
+        } catch (e) {
+          console.warn('エラー時停止失敗:', e);
+        }
+        
+        // 状態を完全リセット
+        isScanning = false;
+        isSwitching = false;
+        resetCameraState();
+        
       } finally {
         // 必ず実行される後処理
         isSwitching = false;
