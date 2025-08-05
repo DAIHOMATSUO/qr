@@ -20,6 +20,8 @@
       min-height: 100vh;
       font-size: 16px;
       touch-action: manipulation;
+      display: flex;
+      flex-direction: column;
     }
     
     h1 {
@@ -27,6 +29,14 @@
       margin: 0 0 16px 0;
       font-size: 22px;
       text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      flex-shrink: 0;
+    }
+    
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
     }
     
     .camera-box {
@@ -43,7 +53,8 @@
       border-radius: 8px;
       overflow: hidden;
       background: #000;
-      min-height: 250px;
+      min-height: 200px;
+      max-height: 300px;
     }
     
     .btn {
@@ -55,11 +66,13 @@
       font-weight: 600;
       cursor: pointer;
       margin: 6px 0;
-      transition: transform 0.1s;
+      transition: transform 0.1s, opacity 0.3s;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      position: relative;
     }
     
     .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     
     .btn-primary {
       background: linear-gradient(45deg, #4CAF50, #45a049);
@@ -91,6 +104,16 @@
     .status-success { background: rgba(76, 175, 80, 0.2); border: 1px solid rgba(76, 175, 80, 0.5); }
     .status-error { background: rgba(244, 67, 54, 0.2); border: 1px solid rgba(244, 67, 54, 0.5); }
     .status-info { background: rgba(33, 150, 243, 0.2); border: 1px solid rgba(33, 150, 243, 0.5); }
+    .status-warning { background: rgba(255, 152, 0, 0.2); border: 1px solid rgba(255, 152, 0, 0.5); }
+    
+    .camera-status {
+      padding: 8px;
+      border-radius: 6px;
+      margin: 4px 0;
+      font-size: 12px;
+      text-align: center;
+      background: rgba(255,255,255,0.1);
+    }
     
     .confirm-dialog {
       position: fixed;
@@ -109,8 +132,34 @@
       color: #333;
       padding: 20px;
       border-radius: 12px;
-      margin-top: 30%;
+      margin-top: 20%;
       box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    
+    .clear-dialog {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      z-index: 1001;
+      padding: 16px;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .clear-content {
+      background: white;
+      color: #333;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      max-width: 400px;
+      width: 90%;
     }
     
     .confirm-text {
@@ -161,6 +210,12 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: all 0.1s;
+    }
+    
+    .quantity-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
     }
     
     .quantity-minus {
@@ -168,16 +223,13 @@
       color: white;
     }
     
-    .quantity-btn:active {
+    .quantity-plus {
+      background: #51cf66;
+      color: white;
+    }
+    
+    .quantity-btn:active:not(:disabled) {
       transform: translateY(1px);
-    }
-    
-    .quantity-minus:active {
-      background: #e55555;
-    }
-    
-    .quantity-plus:active {
-      background: #45b555;
     }
     
     .quantity-display {
@@ -280,51 +332,115 @@
       margin: 0;
     }
     
+    .error-message {
+      background: rgba(244, 67, 54, 0.9);
+      color: white;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 8px 0;
+      text-align: center;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3);
+    }
+    
+    .warning-hint {
+      background: rgba(255, 152, 0, 0.2);
+      color: #333;
+      padding: 8px;
+      border-radius: 6px;
+      margin: 8px 0;
+      font-size: 12px;
+      text-align: center;
+      border: 1px solid rgba(255, 152, 0, 0.5);
+    }
+    
+    @media (orientation: landscape) {
+      .main-content {
+        flex-direction: row;
+        gap: 16px;
+      }
+      
+      .camera-box {
+        flex: 1.2;
+        margin-bottom: 0;
+      }
+      
+      .side-panel {
+        flex: 0.8;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      #reader {
+        min-height: 150px;
+        max-height: 200px;
+      }
+    }
+    
     @media (max-height: 600px) {
       body { padding: 8px; }
       h1 { font-size: 20px; margin-bottom: 12px; }
       .camera-box { padding: 12px; }
-      #reader { min-height: 200px; }
+      #reader { min-height: 150px; max-height: 180px; }
+    }
+    
+    @media (max-width: 480px) {
+      .actions {
+        grid-template-columns: 1fr;
+      }
+      
+      .camera-actions {
+        flex-direction: column;
+      }
+      
+      .camera-actions .btn {
+        margin: 4px 0;
+      }
     }
   </style>
 </head>
 <body>
   <h1>📱 QR在庫スキャン（浜松Ver）</h1>
   
-  <!-- カメラセクション -->
-  <div class="camera-box">
-    <div id="reader"></div>
-    <div class="camera-actions">
-      <button id="startBtn" class="btn btn-primary">📷 カメラ起動</button>
-      <button id="stopBtn" class="btn btn-danger hidden">⏹️ 停止</button>
-      <button id="switchBtn" class="btn btn-secondary hidden">🔄 切替</button>
+  <div class="main-content">
+    <!-- カメラセクション -->
+    <div class="camera-box">
+      <div id="reader"></div>
+      <div class="camera-actions">
+        <button id="startBtn" class="btn btn-primary">📷 カメラ起動</button>
+        <button id="stopBtn" class="btn btn-danger hidden">⏹️ 停止</button>
+        <button id="switchBtn" class="btn btn-secondary hidden">🔄 切替</button>
+      </div>
+      <div id="cameraStatus" class="camera-status hidden"></div>
+      <div id="status" class="status status-info">📱 カメラ起動ボタンを押してください</div>
     </div>
-    <div id="status" class="status status-info">📱 カメラ起動ボタンを押してください</div>
-  </div>
-  
-  <!-- 集計表示 -->
-  <div class="summary-card">
-    <div class="summary-item">
-      <span>📋 読み取り件数</span>
-      <span id="count">0件</span>
-    </div>
-    <div class="summary-item">
-      <span>📦 合計数量</span>
-      <span id="total">0個</span>
-    </div>
-  </div>
-  
-  <!-- アクション -->
-  <div class="actions">
-    <button class="btn btn-secondary" id="exportBtn">💾 データ出力</button>
-    <button class="btn btn-secondary" id="clearBtn">🗑️ クリア</button>
-  </div>
-  
-  <!-- データ表示 -->
-  <div id="dataSection" class="hidden">
-    <div class="data-table">
-      <div class="table-header">📊 最新の読み取り履歴</div>
-      <div id="dataList"></div>
+    
+    <div class="side-panel">
+      <!-- 集計表示 -->
+      <div class="summary-card">
+        <div class="summary-item">
+          <span>📋 読み取り件数</span>
+          <span id="count">0件</span>
+        </div>
+        <div class="summary-item">
+          <span>📦 合計数量</span>
+          <span id="total">0個</span>
+        </div>
+      </div>
+      
+      <!-- アクション -->
+      <div class="actions">
+        <button class="btn btn-secondary" id="exportBtn">💾 データ出力</button>
+        <button class="btn btn-secondary" id="clearBtn">🗑️ クリア</button>
+      </div>
+      
+      <!-- データ表示 -->
+      <div id="dataSection" class="hidden">
+        <div class="data-table">
+          <div class="table-header">📊 最新の読み取り履歴</div>
+          <div id="dataList"></div>
+        </div>
+      </div>
     </div>
   </div>
   
@@ -361,8 +477,8 @@
         </div>
       </div>
       
-      <div style="text-align: center; font-size: 12px; color: #666; margin-bottom: 16px;">
-        💡 入り数を確認後、箱数を設定してください
+      <div class="warning-hint">
+        💡 入り数とboxQuantityを確認後、登録してください
       </div>
       
       <div class="confirm-buttons">
@@ -372,16 +488,34 @@
     </div>
   </div>
 
+  <!-- データクリア確認ダイアログ -->
+  <div id="clearDialog" class="clear-dialog">
+    <div class="clear-content">
+      <h3 style="margin-top: 0; color: #d32f2f;">⚠️ データ削除確認</h3>
+      <p>現在<strong id="clearCount">0</strong>件のデータが保存されています。</p>
+      <p style="color: #666; font-size: 14px;">この操作は取り消せません。本当に全てのデータを削除しますか？</p>
+      
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button class="btn btn-secondary" id="clearCancelBtn" style="flex: 1; margin: 0;">キャンセル</button>
+        <button class="btn btn-danger" id="clearConfirmBtn" style="flex: 1; margin: 0;">削除実行</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    // グローバル変数（最小限）
+    // グローバル変数
     let scanner = null;
     let isScanning = false;
     let pendingData = null;
     let scanData = [];
     let totalCount = 0;
-    let totalQuantity = 0;
+    let totalQuantitySum = 0;
     let availableCameras = [];
     let currentCameraIndex = 0;
+    let lastScanTime = 0;
+    let unitQuantity = 1;
+    let boxQuantity = 1;
+    let buttonCooldown = false;
 
     // DOM要素
     const startBtn = document.getElementById('startBtn');
@@ -399,88 +533,46 @@
     const boxQuantityDisplay = document.getElementById('boxQuantityDisplay');
     const totalDisplay = document.getElementById('totalDisplay');
     const status = document.getElementById('status');
+    const cameraStatus = document.getElementById('cameraStatus');
     const confirmDialog = document.getElementById('confirmDialog');
     const confirmText = document.getElementById('confirmText');
     const countEl = document.getElementById('count');
     const totalEl = document.getElementById('total');
     const dataSection = document.getElementById('dataSection');
     const dataList = document.getElementById('dataList');
-    
-    // 数量管理用変数
-    let unitQuantity = 1;  // 箱の入り数
-    let boxQuantity = 1;   // 箱数
-
-    // 初期化時にDOM要素の存在確認
-    function checkDOMElements() {
-      const elements = {
-        'increaseUnitBtn': increaseUnitBtn,
-        'decreaseUnitBtn': decreaseUnitBtn,
-        'increaseBoxBtn': increaseBoxBtn,
-        'decreaseBoxBtn': decreaseBoxBtn,
-        'unitQuantityDisplay': unitQuantityDisplay,
-        'boxQuantityDisplay': boxQuantityDisplay,
-        'totalDisplay': totalDisplay
-      };
-      
-      for (const [name, element] of Object.entries(elements)) {
-        if (!element) {
-          console.error(`❌ DOM要素が見つかりません: ${name}`);
-        } else {
-          console.log(`✅ DOM要素確認: ${name}`);
-        }
-      }
-    }
-    let calculatedTotal = 1; // 合計個数（計算値）
+    const clearDialog = document.getElementById('clearDialog');
+    const clearCount = document.getElementById('clearCount');
+    const clearCancelBtn = document.getElementById('clearCancelBtn');
+    const clearConfirmBtn = document.getElementById('clearConfirmBtn');
 
     // 初期化
     document.addEventListener('DOMContentLoaded', function() {
       console.log('DOM読み込み完了');
-      
-      // DOM要素の存在確認
-      checkDOMElements();
-      
-      // イベントリスナー設定
+      initializeEventListeners();
+      loadSavedData();
+      checkLibraryLoaded();
+      updateButtonStates();
+    });
+
+    // イベントリスナー初期化
+    function initializeEventListeners() {
       startBtn.addEventListener('click', startCamera);
       stopBtn.addEventListener('click', stopCamera);
       switchBtn.addEventListener('click', switchCamera);
       exportBtn.addEventListener('click', exportData);
-      clearBtn.addEventListener('click', clearData);
+      clearBtn.addEventListener('click', showClearDialog);
       confirmBtn.addEventListener('click', confirmScan);
       cancelBtn.addEventListener('click', cancelScan);
+      clearCancelBtn.addEventListener('click', hideClearDialog);
+      clearConfirmBtn.addEventListener('click', executeDataClear);
       
-      // 数量調整ボタンのイベントリスナー（存在確認付き）
-      if (increaseUnitBtn) {
-        increaseUnitBtn.addEventListener('click', function() {
-          console.log('入り数＋ボタンがクリックされました');
-          increaseUnit();
-        });
-      }
-      if (decreaseUnitBtn) {
-        decreaseUnitBtn.addEventListener('click', function() {
-          console.log('入り数−ボタンがクリックされました');
-          decreaseUnit();
-        });
-      }
-      if (increaseBoxBtn) {
-        increaseBoxBtn.addEventListener('click', function() {
-          console.log('箱数＋ボタンがクリックされました');
-          increaseBox();
-        });
-      }
-      if (decreaseBoxBtn) {
-        decreaseBoxBtn.addEventListener('click', function() {
-          console.log('箱数−ボタンがクリックされました');
-          decreaseBox();
-        });
-      }
+      increaseUnitBtn.addEventListener('click', () => adjustQuantityWithCooldown('unit', 1));
+      decreaseUnitBtn.addEventListener('click', () => adjustQuantityWithCooldown('unit', -1));
+      increaseBoxBtn.addEventListener('click', () => adjustQuantityWithCooldown('box', 1));
+      decreaseBoxBtn.addEventListener('click', () => adjustQuantityWithCooldown('box', -1));
       
       console.log('全イベントリスナー設定完了');
-      
-      loadSavedData();
-      
-      // Html5Qrcodeライブラリの読み込み確認
-      checkLibraryLoaded();
-    });
+    }
 
     // ライブラリ読み込み確認
     function checkLibraryLoaded() {
@@ -489,50 +581,43 @@
         return;
       }
       updateStatus('📱 準備完了', 'info');
-      
-      // DOM診断を実行
-      setTimeout(diagnoseDOMElements, 1000);
     }
 
-    // DOM要素診断（デバッグ用）
-    function diagnoseDOMElements() {
-      console.log('=== DOM要素診断 ===');
+    // ボタン状態更新
+    function updateButtonStates() {
+      const hasData = scanData.length > 0;
+      exportBtn.disabled = !hasData;
+      clearBtn.disabled = !hasData;
       
-      const testElements = [
-        'increaseUnitBtn', 'decreaseUnitBtn', 
-        'increaseBoxBtn', 'decreaseBoxBtn',
-        'unitQuantityDisplay', 'boxQuantityDisplay', 'totalDisplay'
-      ];
-      
-      testElements.forEach(id => {
-        const element = document.getElementById(id);
-        if (element) {
-          console.log(`✅ ${id}: 存在`);
-        } else {
-          console.error(`❌ ${id}: 見つかりません`);
-        }
-      });
-      
-      // 確認ダイアログの中身もチェック
-      const confirmDialog = document.getElementById('confirmDialog');
-      if (confirmDialog) {
-        console.log('確認ダイアログの中身:', confirmDialog.innerHTML.substring(0, 200) + '...');
+      if (!hasData) {
+        exportBtn.style.opacity = '0.5';
+        clearBtn.style.opacity = '0.5';
+      } else {
+        exportBtn.style.opacity = '1';
+        clearBtn.style.opacity = '1';
       }
     }
 
-    // カメラ起動（エラーハンドリング強化）
+    // カメラ状態表示更新
+    function updateCameraStatus(message) {
+      if (cameraStatus) {
+        cameraStatus.textContent = message;
+        cameraStatus.classList.remove('hidden');
+      }
+    }
+
+    // カメラ起動
     async function startCamera() {
       if (isScanning) return;
       
       try {
         updateStatus('📷 起動中...', 'info');
+        updateCameraStatus('カメラを初期化中...');
         
-        // ライブラリ確認
         if (typeof Html5Qrcode === 'undefined') {
           throw new Error('QRライブラリが読み込まれていません。ページを再読み込みしてください。');
         }
-        
-        // ブラウザサポート確認
+
         if (!navigator.mediaDevices) {
           throw new Error('このブラウザはカメラに対応していません。');
         }
@@ -543,32 +628,48 @@
         availableCameras = await Html5Qrcode.getCameras();
         
         if (availableCameras.length === 0) {
-          throw new Error('カメラが見つかりません。他のアプリでカメラを使用していないか確認してください。');
+          throw new Error('カメラが見つかりません。カメラの使用許可を確認してください。');
         }
 
-        // 背面カメラ選択（シンプル版）
+        updateCameraStatus(`${availableCameras.length}台のカメラを検出`);
+
+        // 背面カメラ選択の改良
         let selectedCamera = availableCameras[0];
         currentCameraIndex = 0;
         
         for (let i = 0; i < availableCameras.length; i++) {
           const label = availableCameras[i].label.toLowerCase();
-          if (label.includes('back') || label.includes('rear') || label.includes('environment')) {
+          if (label.includes('back') || 
+              label.includes('rear') || 
+              label.includes('environment') ||
+              label.includes('camera2') ||
+              (!label.includes('front') && !label.includes('facing') && i > 0)) {
             selectedCamera = availableCameras[i];
             currentCameraIndex = i;
             break;
           }
         }
 
-        // カメラ起動
+        updateCameraStatus(`使用カメラ: ${selectedCamera.label || 'カメラ' + (currentCameraIndex + 1)}`);
+
+        // カメラ設定
+        const config = {
+          fps: { ideal: 10, max: 15 },
+          qrbox: function(viewfinderWidth, viewfinderHeight) {
+            const minEdgePercentage = 0.7;
+            const qrboxSize = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * minEdgePercentage);
+            return {
+              width: qrboxSize,
+              height: qrboxSize
+            };
+          },
+          aspectRatio: 1.0,
+          disableFlip: false
+        };
+
         await scanner.start(
           selectedCamera.id,
-          {
-            fps: 10,
-            qrbox: function(w, h) {
-              const size = Math.min(w, h) * 0.8;
-              return { width: size, height: size };
-            }
-          },
+          config,
           onScanSuccess,
           onScanFailure
         );
@@ -577,9 +678,10 @@
         startBtn.classList.add('hidden');
         stopBtn.classList.remove('hidden');
         
-        // 複数カメラがある場合のみ切り替えボタン表示
         if (availableCameras.length > 1) {
           switchBtn.classList.remove('hidden');
+        } else {
+          updateCameraStatus('カメラ1台のみ（切替不可）');
         }
         
         updateStatus('📷 スキャン待機中', 'success');
@@ -587,13 +689,18 @@
       } catch (error) {
         console.error('カメラエラー:', error);
         updateStatus(`❌ ${error.message}`, 'error');
-        
-        // エラー時の状態リセット
-        isScanning = false;
-        startBtn.classList.remove('hidden');
-        stopBtn.classList.add('hidden');
-        switchBtn.classList.add('hidden');
+        updateCameraStatus('カメラ起動失敗');
+        resetCameraState();
       }
+    }
+
+    // カメラ状態リセット
+    function resetCameraState() {
+      isScanning = false;
+      startBtn.classList.remove('hidden');
+      stopBtn.classList.add('hidden');
+      switchBtn.classList.add('hidden');
+      cameraStatus.classList.add('hidden');
     }
 
     // カメラ停止
@@ -601,14 +708,16 @@
       if (!isScanning) return;
       
       try {
-        if (scanner) await scanner.stop();
-      } catch (e) {}
+        if (scanner) {
+          await scanner.stop();
+          scanner.clear();
+        }
+      } catch (e) {
+        console.error('停止エラー:', e);
+      }
       
       scanner = null;
-      isScanning = false;
-      startBtn.classList.remove('hidden');
-      stopBtn.classList.add('hidden');
-      switchBtn.classList.add('hidden');
+      resetCameraState();
       updateStatus('⏹️ カメラ停止', 'info');
     }
 
@@ -618,38 +727,60 @@
 
       try {
         updateStatus('🔄 切り替え中...', 'info');
+        updateCameraStatus('カメラ切り替え中...');
         
-        if (scanner) await scanner.stop();
+        if (scanner) {
+          await scanner.stop();
+          scanner.clear();
+        }
         
         currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
         const nextCamera = availableCameras[currentCameraIndex];
         
         scanner = new Html5Qrcode("reader");
+        const config = {
+          fps: { ideal: 10, max: 15 },
+          qrbox: function(viewfinderWidth, viewfinderHeight) {
+            const minEdgePercentage = 0.7;
+            const qrboxSize = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * minEdgePercentage);
+            return {
+              width: qrboxSize,
+              height: qrboxSize
+            };
+          },
+          aspectRatio: 1.0,
+          disableFlip: false
+        };
+
         await scanner.start(
           nextCamera.id,
-          {
-            fps: 10,
-            qrbox: function(w, h) {
-              const size = Math.min(w, h) * 0.8;
-              return { width: size, height: size };
-            }
-          },
+          config,
           onScanSuccess,
           onScanFailure
         );
 
-        updateStatus(`🔄 切り替え完了`, 'success');
+        updateCameraStatus(`切替完了: ${nextCamera.label || 'カメラ' + (currentCameraIndex + 1)}`);
+        updateStatus('🔄 切り替え完了', 'success');
 
       } catch (error) {
         console.error('切り替えエラー:', error);
         updateStatus('❌ 切り替え失敗', 'error');
+        updateCameraStatus('切り替え失敗');
         await stopCamera();
       }
     }
 
-    // QRコード読み取り成功（改良版）
+    // QRコード読み取り成功
     function onScanSuccess(decodedText) {
       try {
+        const currentTime = Date.now();
+        
+        // 重複読み取り防止（500ms以内は無視）
+        if (currentTime - lastScanTime < 500) {
+          return;
+        }
+        lastScanTime = currentTime;
+
         // 振動フィードバック
         if (navigator.vibrate) navigator.vibrate(100);
         
@@ -659,7 +790,7 @@
         const cleanText = decodedText.trim().replace(/[\r\n]/g, '');
         
         // CSV解析
-        const parts = parseSimpleCSV(cleanText);
+        const parts = parseCSV(cleanText);
         
         if (parts.length < 3) {
           updateStatus(`❌ 形式エラー: ${parts.length}項目（最低3項目必要）`, 'error');
@@ -667,13 +798,14 @@
           return;
         }
 
-        // 4項目未満は空文字で補完
-        while (parts.length < 4) parts.push('');
+        // データ補完
+        while (parts.length < 5) parts.push('');
 
-        const [date, productCode, quantityStr, internalCode] = parts.map(p => p.trim());
+        const [date, productCode, quantityStr, internalCode, boxQuantityStr] = parts.map(p => p.trim());
         const quantity = parseInt(quantityStr, 10);
+        const qrBoxQuantity = parseInt(boxQuantityStr, 10);
 
-        // 基本バリデーション
+        // バリデーション
         if (!date || !productCode) {
           updateStatus('❌ 日付または品番が空です', 'error');
           setTimeout(() => updateStatus('📷 スキャン待機中', 'success'), 3000);
@@ -681,7 +813,7 @@
         }
 
         if (isNaN(quantity) || quantity <= 0) {
-          updateStatus(`❌ 数量エラー: "${quantityStr}"`, 'error');
+          updateStatus(`❌ 数量エラー: "${quantityStr}"は無効な数値です`, 'error');
           setTimeout(() => updateStatus('📷 スキャン待機中', 'success'), 3000);
           return;
         }
@@ -689,9 +821,11 @@
         pendingData = {
           date: date,
           productCode: productCode,
-          quantity: quantity,
+          originalQuantity: quantity,
+          originalBoxQuantity: !isNaN(qrBoxQuantity) && qrBoxQuantity > 0 ? qrBoxQuantity : null,
           internalCode: internalCode || '未設定',
-          timestamp: new Date().toLocaleTimeString()
+          timestamp: new Date().toLocaleTimeString(),
+          scanTime: currentTime
         };
 
         showConfirmDialog();
@@ -703,187 +837,153 @@
       }
     }
 
-    // QRコード読み取り失敗（何もしない）
+    // QRコード読み取り失敗
     function onScanFailure(error) {
-      // 正常動作
+      // 何もしない（正常動作）
     }
 
-    // シンプルCSV解析
-    function parseSimpleCSV(text) {
-      // 基本的なカンマ区切り + クォート除去
-      return text
-        .replace(/"/g, '')
-        .split(',')
-        .map(item => item.trim());
+    // CSV解析改良版
+    function parseCSV(text) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      
+      if (current) {
+        result.push(current.trim());
+      }
+      
+      return result;
     }
 
-    // 確認ダイアログ表示（初期化強化）
+    // 確認ダイアログ表示（問題1修正）
     function showConfirmDialog() {
       if (!pendingData) return;
       
-      console.log('=== 確認ダイアログ表示開始 ===');
-      console.log('pendingData:', pendingData);
+      // QRコードの数量を初期値として設定
+      unitQuantity = pendingData.originalQuantity;
       
-      // QRコードの数量を入り数として設定（型安全）
-      const qrQuantity = parseInt(pendingData.quantity, 10) || 1;
-      unitQuantity = qrQuantity;
-      boxQuantity = 1; // 箱数は必ず1からスタート
-      
-      console.log('初期値設定完了:', { 
-        qrQuantity, 
-        unitQuantity, 
-        boxQuantity 
-      });
+      // 箱数の初期値設定（問題1の修正）
+      if (pendingData.originalBoxQuantity) {
+        boxQuantity = pendingData.originalBoxQuantity;
+      } else {
+        boxQuantity = 1;
+      }
       
       updateQuantityDisplays();
+      
+      let boxInfo = '';
+      if (pendingData.originalBoxQuantity) {
+        boxInfo = `<br>📦 QR箱数: ${pendingData.originalBoxQuantity}箱`;
+      }
       
       confirmText.innerHTML = `
         <strong>📦 登録確認</strong><br><br>
         📅 日付: ${pendingData.date}<br>
         🏷️ 品番: ${pendingData.productCode}<br>
-        📋 管理番号: ${pendingData.internalCode}
+        📋 管理番号: ${pendingData.internalCode}<br>
+        📖 QR数量: ${pendingData.originalQuantity}個${boxInfo}
       `;
       
       confirmDialog.style.display = 'block';
-      console.log('=== 確認ダイアログ表示完了 ===');
     }
 
-    // 全ての数量表示を更新（シンプル化）
-    function updateQuantityDisplays() {
-      console.log('=== updateQuantityDisplays開始 ===');
-      console.log('更新前の値:', { unitQuantity, boxQuantity });
-      console.log('値の型:', { 
-        unitType: typeof unitQuantity, 
-        boxType: typeof boxQuantity 
-      });
+    // 数量調整（クールダウン付き）（問題6修正）
+    function adjustQuantityWithCooldown(type, delta) {
+      if (buttonCooldown) return;
       
-      // DOM要素に表示
+      buttonCooldown = true;
+      const buttons = [increaseUnitBtn, decreaseUnitBtn, increaseBoxBtn, decreaseBoxBtn];
+      buttons.forEach(btn => btn.disabled = true);
+      
+      adjustQuantity(type, delta);
+      
+      setTimeout(() => {
+        buttonCooldown = false;
+        buttons.forEach(btn => btn.disabled = false);
+      }, 150);
+    }
+
+    // 数量調整（統一関数）
+    function adjustQuantity(type, delta) {
+      if (type === 'unit') {
+        const newValue = Math.max(1, Math.min(999, unitQuantity + delta));
+        if (newValue !== unitQuantity) {
+          unitQuantity = newValue;
+          updateQuantityDisplays();
+          if (navigator.vibrate) navigator.vibrate(50);
+        }
+      } else if (type === 'box') {
+        const newValue = Math.max(1, Math.min(999, boxQuantity + delta));
+        if (newValue !== boxQuantity) {
+          boxQuantity = newValue;
+          updateQuantityDisplays();
+          if (navigator.vibrate) navigator.vibrate(50);
+        }
+      }
+    }
+
+    // 数量表示更新
+    function updateQuantityDisplays() {
       if (unitQuantityDisplay) {
         unitQuantityDisplay.textContent = unitQuantity;
-        console.log('入り数表示更新:', unitQuantity);
       }
       
       if (boxQuantityDisplay) {
         boxQuantityDisplay.textContent = boxQuantity;
-        console.log('箱数表示更新:', boxQuantity);
       }
       
-      // 合計計算と表示
-      const total = parseInt(unitQuantity, 10) * parseInt(boxQuantity, 10);
-      console.log('合計計算:', `${unitQuantity} × ${boxQuantity} = ${total}`);
-      
+      const total = unitQuantity * boxQuantity;
       if (totalDisplay) {
         totalDisplay.textContent = total;
-        console.log('合計表示更新:', total);
-      }
-      
-      console.log('=== updateQuantityDisplays完了 ===');
-    }
-
-    // 計算された合計を取得（安全版）
-    function getCalculatedTotal() {
-      console.log('=== getCalculatedTotal開始 ===');
-      console.log('計算前の値:', { unitQuantity, boxQuantity });
-      console.log('値の型:', { 
-        unitQuantityType: typeof unitQuantity, 
-        boxQuantityType: typeof boxQuantity 
-      });
-      
-      // 確実に数値型に変換
-      const safeUnit = parseInt(unitQuantity, 10);
-      const safeBox = parseInt(boxQuantity, 10);
-      
-      console.log('変換後:', { safeUnit, safeBox });
-      
-      // NaNチェック
-      if (isNaN(safeUnit) || isNaN(safeBox)) {
-        console.error('❌ NaN検出:', { safeUnit, safeBox });
-        return 1; // 緊急フォールバック
-      }
-      
-      // ゼロまたは負数チェック
-      if (safeUnit <= 0 || safeBox <= 0) {
-        console.error('❌ 不正な値:', { safeUnit, safeBox });
-        return 1; // 緊急フォールバック
-      }
-      
-      const result = safeUnit * safeBox;
-      console.log('最終計算:', `${safeUnit} × ${safeBox} = ${result}`);
-      console.log('=== getCalculatedTotal完了 ===');
-      
-      return result;
-    }
-
-    // 入り数増加（シンプル版）
-    function increaseUnit() {
-      console.log('入り数+:', unitQuantity, '->', unitQuantity + 1);
-      
-      if (unitQuantity < 999) {
-        unitQuantity++;
-        updateQuantityDisplays();
-        if (navigator.vibrate) navigator.vibrate(50);
       }
     }
 
-    // 入り数減少（シンプル版）
-    function decreaseUnit() {
-      console.log('入り数-:', unitQuantity, '->', unitQuantity - 1);
-      
-      if (unitQuantity > 1) {
-        unitQuantity--;
-        updateQuantityDisplays();
-        if (navigator.vibrate) navigator.vibrate(50);
-      }
-    }
-
-    // 箱数増加（シンプル版）
-    function increaseBox() {
-      console.log('箱数+:', boxQuantity, '->', boxQuantity + 1);
-      
-      if (boxQuantity < 999) {
-        boxQuantity++;
-        updateQuantityDisplays();
-        if (navigator.vibrate) navigator.vibrate(50);
-      }
-    }
-
-    // 箱数減少（シンプル版）
-    function decreaseBox() {
-      console.log('箱数-:', boxQuantity, '->', boxQuantity - 1);
-      
-      if (boxQuantity > 1) {
-        boxQuantity--;
-        updateQuantityDisplays();
-        if (navigator.vibrate) navigator.vibrate(50);
-      }
-    }
-
-    // スキャン確定
+    // スキャン確定（問題3修正：並び順保証）
     function confirmScan() {
       if (!pendingData) return;
       
-      // 最終的な登録データ
+      const finalQuantity = unitQuantity * boxQuantity;
+      
       const finalData = {
         ...pendingData,
-        unitQuantity: unitQuantity,      // 入り数
-        boxQuantity: boxQuantity,        // 箱数
-        quantity: totalQuantity,         // 合計個数
-        originalQuantity: pendingData.quantity // QRコードの元数量
+        unitQuantity: unitQuantity,
+        boxQuantity: boxQuantity,
+        quantity: finalQuantity,
+        finalTimestamp: new Date().toLocaleTimeString(),
+        registrationOrder: Date.now() // 登録順序を保証
       };
       
       scanData.push(finalData);
+      
+      // 登録順序でソート（最新順保証）
+      scanData.sort((a, b) => (b.registrationOrder || 0) - (a.registrationOrder || 0));
+      
       totalCount++;
-      totalQuantity += totalQuantity;
+      totalQuantitySum += finalQuantity;
       
       updateSummary();
       updateDataDisplay();
+      updateButtonStates();
       saveData();
       
       confirmDialog.style.display = 'none';
       pendingData = null;
       resetQuantities();
       
-      updateStatus(`✅ ${finalData.productCode} ${unitQuantity}個×${boxQuantity}箱=${totalQuantity}個 登録完了`, 'success');
+      updateStatus(`✅ ${finalData.productCode} ${unitQuantity}個×${boxQuantity}箱=${finalQuantity}個 登録完了`, 'success');
       setTimeout(() => updateStatus('📷 スキャン待機中', 'success'), 3000);
     }
 
@@ -899,16 +999,15 @@
     function resetQuantities() {
       unitQuantity = 1;
       boxQuantity = 1;
-      totalQuantity = 1;
     }
 
     // サマリー更新
     function updateSummary() {
       countEl.textContent = `${totalCount}件`;
-      totalEl.textContent = `${totalQuantitySum}個`; // 修正された変数名
+      totalEl.textContent = `${totalQuantitySum}個`;
     }
 
-    // データ表示更新（エラー修正版）
+    // データ表示更新（問題3修正：確実な最新順表示）
     function updateDataDisplay() {
       if (scanData.length === 0) {
         dataSection.classList.add('hidden');
@@ -918,77 +1017,47 @@
       dataSection.classList.remove('hidden');
       dataList.innerHTML = '';
       
-      console.log('=== 履歴表示更新（デバッグ） ===');
-      console.log('scanData全体:', scanData);
-      console.log('scanData件数:', scanData.length);
+      // 確実に最新順にソート
+      const sortedData = [...scanData].sort((a, b) => 
+        (b.registrationOrder || b.scanTime || 0) - (a.registrationOrder || a.scanTime || 0)
+      );
       
       // 最新5件のみ表示
-      const recentData = scanData.slice(-5).reverse();
-      console.log('表示対象データ:', recentData);
+      const recentData = sortedData.slice(0, 5);
       
-      recentData.forEach((item, index) => {
-        console.log(`--- 項目${index} ---`);
-        console.log('データ:', item);
-        console.log('各フィールド確認:');
-        console.log('  productCode:', item.productCode);
-        console.log('  unitQuantity:', item.unitQuantity, typeof item.unitQuantity);
-        console.log('  boxQuantity:', item.boxQuantity, typeof item.boxQuantity);
-        console.log('  quantity:', item.quantity, typeof item.quantity);
-        console.log('  date:', item.date);
-        console.log('  timestamp:', item.timestamp);
-        
+      recentData.forEach((item) => {
         const row = document.createElement('div');
         row.className = 'table-row';
         
-        // より安全な表示ロジック
-        let quantityInfo = 'データエラー';
-        let productName = item.productCode || '品番不明';
-        let dateInfo = item.date || '日付不明';
-        let timeInfo = item.timestamp || '時刻不明';
+        let quantityInfo = '数量不明';
         
         try {
-          // unitQuantityとboxQuantityが存在する場合（新形式）
           if (item.unitQuantity !== undefined && item.boxQuantity !== undefined) {
             const unit = parseInt(item.unitQuantity, 10) || 0;
             const box = parseInt(item.boxQuantity, 10) || 0;
             const total = unit * box;
-            
-            console.log(`  計算: ${unit} × ${box} = ${total}`);
             
             if (unit > 0 && box > 0) {
               quantityInfo = `${unit}個×${box}箱=${total}個`;
             } else {
               quantityInfo = `${item.quantity || 0}個`;
             }
-          }
-          // quantityのみ存在する場合（旧形式）
-          else if (item.quantity !== undefined) {
+          } else if (item.quantity !== undefined) {
             const qty = parseInt(item.quantity, 10) || 0;
             quantityInfo = `${qty}個`;
-            console.log(`  旧形式: ${qty}個`);
           }
-          // どちらも存在しない場合
-          else {
-            console.error('  ❌ 数量データなし');
-            quantityInfo = '数量不明';
-          }
-          
         } catch (error) {
-          console.error('  ❌ 表示処理エラー:', error);
+          console.error('表示処理エラー:', error);
           quantityInfo = 'エラー';
         }
         
-        console.log(`  最終表示: ${quantityInfo}`);
-        
         row.innerHTML = `
-          <strong>${productName}</strong><br>
+          <strong>${item.productCode || '品番不明'}</strong><br>
           <small>📦 ${quantityInfo}</small><br>
-          <small>${dateInfo} | ${timeInfo}</small>
+          <small>${item.date || '日付不明'} | ${item.timestamp || '時刻不明'}</small>
         `;
         dataList.appendChild(row);
       });
-      
-      console.log('=== 履歴表示更新完了 ===');
     }
 
     // ステータス更新
@@ -997,20 +1066,25 @@
       status.className = `status status-${type}`;
     }
 
-    // データ保存（簡易版）
+    // データ保存
     function saveData() {
       try {
-        localStorage.setItem('qr_data', JSON.stringify({
+        const saveObject = {
           data: scanData,
           count: totalCount,
-          quantity: totalQuantitySum // 修正された変数名
-        }));
+          quantity: totalQuantitySum,
+          lastSaved: new Date().toISOString(),
+          version: '2.0'
+        };
+        localStorage.setItem('qr_data', JSON.stringify(saveObject));
+        console.log('データ保存完了:', saveObject);
       } catch (e) {
         console.error('保存エラー:', e);
+        showUserError('データの保存に失敗しました');
       }
     }
 
-    // データ読み込み（エラー処理強化）
+    // データ読み込み（問題8修正：ユーザー通知強化）
     function loadSavedData() {
       try {
         const saved = localStorage.getItem('qr_data');
@@ -1019,178 +1093,211 @@
           return;
         }
         
-        console.log('=== データ読み込み開始 ===');
-        console.log('生データ:', saved);
-        
         const parsed = JSON.parse(saved);
-        console.log('パース結果:', parsed);
+        console.log('データ読み込み:', parsed);
         
-        // データ配列の確認と修復
         if (Array.isArray(parsed.data)) {
           scanData = parsed.data;
-          console.log('データ配列:', scanData);
           
-          // 各データの整合性チェック
-          let validData = [];
           let recalculatedTotal = 0;
+          let hasDataIssues = false;
           
           scanData.forEach((item, index) => {
-            console.log(`--- データ${index}チェック ---`);
-            console.log('項目:', item);
-            
-            // 必須フィールドのチェック
+            // 必須フィールドの補完
             if (!item.productCode) {
-              console.warn(`データ${index}: 品番なし`);
               item.productCode = `品番不明${index}`;
+              hasDataIssues = true;
             }
-            
             if (!item.date) {
-              console.warn(`データ${index}: 日付なし`);
               item.date = '2025/01/01';
+              hasDataIssues = true;
             }
-            
             if (!item.timestamp) {
-              console.warn(`データ${index}: 時刻なし`);
               item.timestamp = '00:00:00';
+              hasDataIssues = true;
             }
             
             // 数量データの修復
             if (item.unitQuantity && item.boxQuantity) {
-              // 新形式データ
-              const unit = parseInt(item.unitQuantity, 10) || 1;
-              const box = parseInt(item.boxQuantity, 10) || 1;
+              const unit = Math.max(1, parseInt(item.unitQuantity, 10) || 1);
+              const box = Math.max(1, parseInt(item.boxQuantity, 10) || 1);
               const calculatedQty = unit * box;
               
               item.unitQuantity = unit;
               item.boxQuantity = box;
               item.quantity = calculatedQty;
-              
-              console.log(`修復: ${unit}×${box}=${calculatedQty}`);
               recalculatedTotal += calculatedQty;
             } else if (item.quantity) {
-              // 旧形式データ
-              const qty = parseInt(item.quantity, 10) || 1;
+              const qty = Math.max(1, parseInt(item.quantity, 10) || 1);
               item.quantity = qty;
-              
-              console.log(`旧形式: ${qty}個`);
+              item.unitQuantity = qty;
+              item.boxQuantity = 1;
               recalculatedTotal += qty;
+              hasDataIssues = true;
             } else {
-              // データ不正の修復
-              console.warn(`データ${index}: 数量情報なし、デフォルト値設定`);
               item.quantity = 1;
               item.unitQuantity = 1;
               item.boxQuantity = 1;
               recalculatedTotal += 1;
+              hasDataIssues = true;
             }
             
-            validData.push(item);
+            // 登録順序がない場合は追加
+            if (!item.registrationOrder) {
+              item.registrationOrder = Date.now() - (scanData.length - index) * 1000;
+              hasDataIssues = true;
+            }
           });
           
-          scanData = validData;
-          console.log('修復後データ:', scanData);
+          // データに問題があった場合はユーザーに通知
+          if (hasDataIssues) {
+            showUserError('保存データに問題があったため、自動修復しました', 'warning');
+          }
           
         } else {
-          console.error('データ配列が不正');
           scanData = [];
         }
         
-        // カウントとトータルの設定
         totalCount = parsed.count || scanData.length;
-        totalQuantitySum = recalculatedTotal;
+        totalQuantitySum = parsed.quantity || recalculatedTotal;
         
-        console.log('最終結果:', {
+        if (totalQuantitySum === 0 && scanData.length > 0) {
+          totalQuantitySum = scanData.reduce((sum, item) => sum + (item.quantity || 1), 0);
+        }
+        
+        saveData();
+        updateSummary();
+        updateDataDisplay();
+        updateButtonStates();
+        
+        console.log('データ読み込み完了:', {
           件数: totalCount,
           合計: totalQuantitySum,
           データ件数: scanData.length
         });
         
-        // 修復したデータを保存
-        saveData();
-        
-        updateSummary();
-        updateDataDisplay();
-        
-        console.log('=== データ読み込み完了 ===');
-        
       } catch (e) {
-        console.error('❌ データ読み込みエラー:', e);
-        console.log('データを初期化します');
+        console.error('データ読み込みエラー:', e);
+        showUserError('保存データが破損しているため、初期化しました');
         
-        // エラー時は初期化
         scanData = [];
         totalCount = 0;
         totalQuantitySum = 0;
         updateSummary();
         updateDataDisplay();
+        updateButtonStates();
       }
     }
 
-    // データエクスポート（完全版）
-    function exportData() {
+    // ユーザーエラー表示（問題8修正）
+    function showUserError(message, type = 'error') {
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'error-message';
+      if (type === 'warning') {
+        errorDiv.style.background = 'rgba(255, 152, 0, 0.9)';
+        errorDiv.style.boxShadow = '0 4px 12px rgba(255, 152, 0, 0.3)';
+      }
+      errorDiv.textContent = message;
+      
+      document.body.insertBefore(errorDiv, document.body.firstChild);
+      
+      setTimeout(() => {
+        if (errorDiv.parentNode) {
+          errorDiv.parentNode.removeChild(errorDiv);
+        }
+      }, 5000);
+    }
+
+    // データクリア確認ダイアログ表示（問題7修正）
+    function showClearDialog() {
       if (scanData.length === 0) {
-        updateStatus('❌ データなし', 'error');
+        updateStatus('❌ クリアするデータがありません', 'error');
         return;
       }
       
+      clearCount.textContent = totalCount;
+      clearDialog.style.display = 'flex';
+    }
+
+    // データクリア確認ダイアログ非表示
+    function hideClearDialog() {
+      clearDialog.style.display = 'none';
+    }
+
+    // データクリア実行
+    function executeDataClear() {
+      scanData = [];
+      totalCount = 0;
+      totalQuantitySum = 0;
+      updateSummary();
+      updateDataDisplay();
+      updateButtonStates();
+      saveData();
+      hideClearDialog();
+      updateStatus('🗑️ データクリア完了', 'info');
+    }
+
+    // データエクスポート（問題2,4修正）
+    function exportData() {
+      if (scanData.length === 0) {
+        updateStatus('❌ エクスポートするデータがありません', 'error');
+        return;
+      }
+      
+      // ボタンを一時無効化（問題2修正）
+      exportBtn.disabled = true;
+      exportBtn.textContent = '💾 出力中...';
+      
       try {
-        console.log('=== CSVエクスポート開始 ===');
-        console.log('エクスポート対象データ:', scanData);
+        console.log('CSVエクスポート開始');
         
-        // CSVヘッダー
+        // BOM付きUTF-8（問題4修正）
         let csv = '\uFEFF日付,品番,入り数,箱数,合計個数,管理番号,時刻,QR元数量\n';
         
-        scanData.forEach((item, index) => {
-          console.log(`CSV行${index}:`, item);
-          
-          // 各フィールドの安全な取得
-          const date = (item.date || '').toString().replace(/,/g, '');
-          const productCode = (item.productCode || '').toString().replace(/,/g, '');
-          const unitQty = item.unitQuantity || item.quantity || 1;
+        // 登録順序でソート
+        const sortedData = [...scanData].sort((a, b) => 
+          (a.registrationOrder || a.scanTime || 0) - (b.registrationOrder || b.scanTime || 0)
+        );
+        
+        sortedData.forEach((item) => {
+          const date = String(item.date || '').replace(/[,"\r\n]/g, '');
+          const productCode = String(item.productCode || '').replace(/[,"\r\n]/g, '');
+          const unitQty = item.unitQuantity || 1;
           const boxQty = item.boxQuantity || 1;
           const totalQty = item.quantity || (unitQty * boxQty);
-          const internalCode = (item.internalCode || '').toString().replace(/,/g, '');
-          const timestamp = (item.timestamp || '').toString().replace(/,/g, '');
+          const internalCode = String(item.internalCode || '').replace(/[,"\r\n]/g, '');
+          const timestamp = String(item.timestamp || '').replace(/[,"\r\n]/g, '');
           const originalQty = item.originalQuantity || item.quantity || '';
           
-          const csvRow = `${date},${productCode},${unitQty},${boxQty},${totalQty},${internalCode},${timestamp},${originalQty}`;
-          console.log(`CSV行データ: ${csvRow}`);
-          
-          csv += csvRow + '\n';
+          csv += `${date},${productCode},${unitQty},${boxQty},${totalQty},${internalCode},${timestamp},${originalQty}\n`;
         });
         
-        console.log('完成CSVデータ:', csv);
-        
-        // BOM付きUTF-8でCSV出力
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        // ファイル出力（UTF-8 BOM付き）
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8-sig' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `scan_hamamatsu_${new Date().toISOString().split('T')[0]}.csv`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         
         setTimeout(() => URL.revokeObjectURL(url), 100);
         updateStatus(`💾 ${scanData.length}件のデータをエクスポートしました`, 'success');
         
-        console.log('=== CSVエクスポート完了 ===');
+        console.log('CSVエクスポート完了');
         
       } catch (error) {
-        console.error('❌ エクスポートエラー:', error);
+        console.error('エクスポートエラー:', error);
         updateStatus('❌ エクスポート失敗', 'error');
-      }
-    }
-
-    // データクリア
-    function clearData() {
-      if (scanData.length === 0) return;
-      
-      if (confirm(`${totalCount}件のデータを削除しますか？`)) {
-        scanData = [];
-        totalCount = 0;
-        totalQuantitySum = 0; // 修正された変数名
-        updateSummary();
-        updateDataDisplay();
-        saveData();
-        updateStatus('🗑️ データクリア完了', 'info');
+        showUserError('データの出力に失敗しました');
+      } finally {
+        // ボタンを有効に戻す
+        setTimeout(() => {
+          exportBtn.disabled = false;
+          exportBtn.textContent = '💾 データ出力';
+        }, 1000);
       }
     }
 
@@ -1199,6 +1306,38 @@
       if (scanner && isScanning) {
         scanner.stop().catch(() => {});
       }
+    });
+
+    // ページ非表示時のカメラ停止（バッテリー節約）
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden && isScanning) {
+        stopCamera();
+      }
+    });
+
+    // 画面回転対応（問題9修正）
+    window.addEventListener('orientationchange', function() {
+      setTimeout(() => {
+        if (scanner && isScanning) {
+          // カメラを再起動して画面回転に対応
+          stopCamera().then(() => {
+            setTimeout(startCamera, 500);
+          });
+        }
+      }, 100);
+    });
+
+    // エラーハンドリング強化
+    window.addEventListener('error', function(event) {
+      console.error('グローバルエラー:', event.error);
+      updateStatus('❌ システムエラーが発生しました', 'error');
+      showUserError('予期しないエラーが発生しました');
+    });
+
+    // 未処理のPromise拒否をキャッチ
+    window.addEventListener('unhandledrejection', function(event) {
+      console.error('未処理のPromise拒否:', event.reason);
+      event.preventDefault();
     });
   </script>
 </body>
